@@ -37,6 +37,8 @@ enum Fixture {
         }
     }
 
+    static let rules = TokenizerRules(pair: pair)
+
     /// Whether this machine has both layouts enabled, for gating the live tests.
     static let systemLayoutsAvailable: Bool = (try? SystemLayouts.discover()) != nil
 }

@@ -157,36 +157,42 @@ public struct Scorer: Sendable {
     // MARK: - Scoring
 
     /// Plausibility of reading `text` as a word of `script`, in nats.
+    ///
+    /// Punctuation around the word is set aside rather than charged for -- a
+    /// trailing comma is normal in English, and the same keystroke is a letter
+    /// in Hebrew. Only foreign characters *inside* the word are penalised.
     public func scoreReading(_ text: String, script: Script) -> Double {
         guard !text.isEmpty else { return -Double.infinity }
 
-        guard let normalized = WordNormalizer.normalize(text, script: script),
-              !normalized.isEmpty else {
-            // Not even spellable in this script. Score the shape alone and
-            // penalise, rather than returning -infinity, so the margin stays a
-            // finite comparable number.
+        guard let split = WordNormalizer.split(text, script: script) else {
+            // No letters of this script at all. Score the shape and penalise,
+            // rather than returning -infinity, so the margin stays finite and
+            // comparable.
             return lexicon.model(for: script).ngram.logProb(text) - config.foreignCharPenalty
         }
 
-        var score = lexicon.score(normalized, script: script)
+        var score = lexicon.score(split.core, script: script)
 
-        // Characters had to be dropped to make it spellable, i.e. it contained
-        // punctuation foreign to this script.
-        if normalized.count != text.count {
-            score -= config.foreignCharPenalty
+        if split.internalForeignCount > 0 {
+            score -= config.foreignCharPenalty * Double(split.internalForeignCount)
         }
 
         switch script {
         case .hebrew:
-            if WordNormalizer.hasMisplacedFinalForm(normalized) {
+            if WordNormalizer.hasMisplacedFinalForm(split.core) {
                 score -= config.misplacedFinalFormPenalty
             }
         case .latin:
-            if normalized.count >= 3 && WordNormalizer.hasNoVowel(normalized) {
+            if split.core.count >= 3 && WordNormalizer.hasNoVowel(split.core) {
                 score -= config.noVowelPenalty
             }
         }
         return score
+    }
+
+    /// The letter core of a reading, or nil if it has none.
+    func core(_ text: String, script: Script) -> String? {
+        WordNormalizer.split(text, script: script)?.core
     }
 
     /// Build the decision inputs for one token without applying the rule.
@@ -209,15 +215,15 @@ public struct Scorer: Sendable {
 
         let other = activeScript.other
         let otherReading = other == .latin ? latinReading : hebrewReading
-        let normalizedOther = WordNormalizer.normalize(otherReading, script: other)
+        let otherCore = core(otherReading, script: other)
 
         let readingScores = ReadingScores(
             strokeCount: strokes.count,
             currentScore: activeScript == .latin ? latinScore : hebrewScore,
             otherScore: other == .latin ? latinScore : hebrewScore,
-            otherNormalizable: !(normalizedOther?.isEmpty ?? true),
-            otherKnown: normalizedOther.map { isKnown($0, script: other) } ?? false,
-            otherLength: normalizedOther?.count ?? otherReading.count)
+            otherNormalizable: !(otherCore?.isEmpty ?? true),
+            otherKnown: otherCore.map { isKnown($0, script: other) } ?? false,
+            otherLength: otherCore?.count ?? otherReading.count)
 
         return ((latinReading, hebrewReading, latinScore, hebrewScore), readingScores)
     }

@@ -62,6 +62,77 @@ public enum WordNormalizer {
         return false
     }
 
+    /// A word split into its letter core and the punctuation around it.
+    public struct Split {
+        /// The normalised letters, ready for a lexicon lookup.
+        public let core: String
+        /// Characters trimmed from the front and back (ordinary punctuation).
+        public let leading: String
+        public let trailing: String
+        /// Characters inside the core that do not belong to this script.
+        public let internalForeignCount: Int
+    }
+
+    /// Whether a character is a letter of this script.
+    /// The apostrophe counts for Latin so contractions stay whole.
+    public static func isLetter(_ ch: Character, script: Script) -> Bool {
+        switch script {
+        case .latin:
+            if ch == "'" || ch == "\u{2019}" { return true }
+            return ch.isASCII && (ch.lowercased().first.map { $0 >= "a" && $0 <= "z" } ?? false)
+        case .hebrew:
+            guard let scalar = ch.unicodeScalars.first, ch.unicodeScalars.count == 1 else {
+                // A letter plus combining niqqud.
+                return ch.unicodeScalars.allSatisfy {
+                    hebrewLetters.contains($0.value) || hebrewMarks.contains($0.value)
+                }
+            }
+            return hebrewLetters.contains(scalar.value)
+        }
+    }
+
+    /// Separate a token into surrounding punctuation and a letter core.
+    ///
+    /// Needed because the same key can be punctuation in one script and a
+    /// letter in the other: under a Latin layout the comma key is a comma, but
+    /// under Hebrew it is tav -- an extremely common word-final letter. Reading
+    /// "uhksu," as Hebrew must yield the whole word `וילדות`, while reading
+    /// "hello," as Latin must yield `hello` with the comma set aside rather
+    /// than counted against it.
+    public static func split(_ text: String, script: Script) -> Split? {
+        let chars = Array(text)
+        var start = 0, end = chars.count
+        while start < end, !isLetter(chars[start], script: script) { start += 1 }
+        while end > start, !isLetter(chars[end - 1], script: script) { end -= 1 }
+        guard start < end else { return nil }
+
+        let coreChars = chars[start..<end]
+        let internalForeign = coreChars.filter { !isLetter($0, script: script) }.count
+
+        // Normalise the core, dropping anything foreign that survived inside it.
+        var core = ""
+        core.reserveCapacity(coreChars.count)
+        for ch in coreChars where isLetter(ch, script: script) {
+            switch script {
+            case .latin:
+                core += (ch == "\u{2019}") ? "'" : ch.lowercased()
+            case .hebrew:
+                for scalar in ch.unicodeScalars where hebrewLetters.contains(scalar.value) {
+                    core.unicodeScalars.append(scalar)
+                }
+            }
+        }
+        var trimmed = core
+        while trimmed.hasPrefix("'") { trimmed.removeFirst() }
+        while trimmed.hasSuffix("'") { trimmed.removeLast() }
+        guard !trimmed.isEmpty else { return nil }
+
+        return Split(core: trimmed,
+                     leading: String(chars[0..<start]),
+                     trailing: String(chars[end..<chars.count]),
+                     internalForeignCount: internalForeign)
+    }
+
     /// Latin words of any length need a vowel (or y) to be pronounceable.
     public static func hasNoVowel(_ word: String) -> Bool {
         !word.contains { "aeiouy".contains($0) }
