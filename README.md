@@ -37,6 +37,23 @@ nothing — so an app can look like it is running while being completely deaf.
 The menu's **Keys seen** counter is the honest check; it stays at 0 until Input
 Monitoring is granted. *Diagnostics…* reports both grants.
 
+### If the app never appears in the lists at all
+
+A different failure from the one below, with a different cause: if LayoutFix is
+missing from Input Monitoring entirely — no entry to switch on, no prompt — the
+app was signed with the **hardened runtime**. That is for notarized Developer ID
+builds; on an ad-hoc binary carrying no entitlements macOS applies its strict
+prompting policy and declines to register the app for TCC at all. `tccd` logs
+it plainly:
+
+```
+kTCCServiceListenEvent ... ReqResult(... DB Action:None ...)
+Update Access Record: kTCCServiceAccessibility ... to Denied (System Set)
+```
+
+`make` does not pass `--options runtime` for exactly this reason. If you add it
+back, this is the symptom.
+
 ### If it stays deaf
 
 The menu's **Keys seen** counter is the ground truth. If it sits at 0 even

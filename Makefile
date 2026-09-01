@@ -92,12 +92,17 @@ bundle: build
 	@$(MAKE) --no-print-directory sign
 	@echo "built $(APP_BUNDLE)"
 
-# Ad-hoc signature with a stable identifier. The identifier is what keeps the
-# Accessibility grant attached to the app across rebuilds; the cdhash still
-# changes, so macOS may re-prompt after a rebuild.
+# Ad-hoc signature with a stable identifier.
+#
+# Deliberately WITHOUT --options runtime. The hardened runtime is for notarized
+# Developer ID builds; on an ad-hoc binary carrying no entitlements macOS
+# applies its strict prompting policy and refuses to register the app for TCC at
+# all -- tccd logs "DB Action:None" for Input Monitoring (so the app never
+# appears in the list) and auto-denies Accessibility as "(System Set)". The user
+# is then stuck: no prompt, no list entry, nothing to switch on.
 sign:
 	codesign --force --sign - --identifier $(BUNDLE_ID) \
-	  --options runtime --timestamp=none $(APP_BUNDLE) 2>&1 | grep -v '^$$' || true
+	  --timestamp=none $(APP_BUNDLE) 2>&1 | grep -v '^$$' || true
 
 run: bundle
 	-@pkill -x $(EXECUTABLE) 2>/dev/null || true
