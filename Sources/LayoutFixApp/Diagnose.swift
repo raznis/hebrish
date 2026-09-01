@@ -39,15 +39,24 @@ enum Diagnose {
         var lines: [String] = []
         func print(_ line: String) { lines.append(line) }
 
-        // Accessibility
-        let trusted = Permissions.isTrusted
-        print("Accessibility access : \(trusted ? "granted" : "NOT GRANTED")")
-        if !trusted {
+        // Permissions. Two separate grants, in two different lists.
+        let permissions = Permissions.state
+        print("Input Monitoring     : \(permissions.canListen ? "granted" : "NOT GRANTED")  (needed to notice)")
+        print("Accessibility        : \(permissions.canPost ? "granted" : "NOT GRANTED")  (needed to correct)")
+        if !permissions.isComplete {
             problems.append("""
-                Grant Accessibility access:
-                  System Settings > Privacy & Security > Accessibility > enable LayoutFix
-                Then relaunch. Note that rebuilding the app changes its signature,
-                so macOS may require you to re-grant it.
+                Enable LayoutFix under System Settings > Privacy & Security >
+                  \(permissions.missing.joined(separator: "\n  "))
+                then quit and relaunch it.
+
+                Note: CGEvent.tapCreate succeeds without Input Monitoring and then
+                delivers nothing, so a running tap is no evidence that it works.
+                The menu's "Keys seen" counter is the real check -- it stays at 0
+                while Input Monitoring is missing.
+
+                A rebuild changes the app's ad-hoc signature, so macOS may require
+                you to re-grant these. Removing and re-adding the entry clears a
+                stale grant.
                 """)
         }
         print("Secure input active  : \(Permissions.isSecureInputEnabled ? "yes (keystrokes ignored)" : "no")")

@@ -18,6 +18,11 @@ final class Coordinator {
     struct Stats {
         var corrections = 0
         var lastCorrection: Correction?
+        /// Count only -- never which keys. Proves the tap is actually
+        /// delivering events, which is otherwise invisible: a tap can be
+        /// created successfully and still receive nothing if the Input
+        /// Monitoring grant is missing.
+        var keyEventsSeen = 0
     }
 
     private let engine: CorrectionEngine
@@ -140,6 +145,7 @@ final class Coordinator {
             engine.reset(reason)
 
         case .keyDown(let keycode, let shift, let chord):
+            noteKeyEventSeen()
             // A password field has taken the keyboard. Do not look at, buffer,
             // or act on anything while that is true.
             if Permissions.isSecureInputEnabled {
@@ -165,6 +171,18 @@ final class Coordinator {
                 timestamp: ProcessInfo.processInfo.systemUptime) else { return }
 
             apply(correction)
+        }
+    }
+
+    /// Aggregate only, logged occasionally, so "is the tap alive?" is
+    /// answerable without ever recording what was typed.
+    private func noteKeyEventSeen() {
+        stateLock.lock()
+        _stats.keyEventsSeen += 1
+        let total = _stats.keyEventsSeen
+        stateLock.unlock()
+        if total == 1 || total % 100 == 0 {
+            Log.tap.info("tap alive: \(total, privacy: .public) key events delivered")
         }
     }
 

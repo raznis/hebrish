@@ -47,15 +47,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.coordinator = coordinator
         self.menuBar = MenuBarController(coordinator: coordinator, settings: settings)
 
+        // Check permission before starting, not after. CGEvent.tapCreate
+        // succeeds without Input Monitoring and then delivers nothing, so
+        // "the tap was created" is not evidence that anything works.
+        let permissions = Permissions.state
+        Log.app.info("permissions: listen=\(permissions.canListen, privacy: .public) post=\(permissions.canPost, privacy: .public)")
+
         if coordinator.start() {
             Log.app.info("event tap running")
         } else {
-            // The tap could not be created, which in practice always means
-            // Accessibility has not been granted. Prompt, then leave the menu
-            // bar item in place explaining what is needed.
-            Log.app.error("event tap could not be created; Accessibility access is missing")
-            Permissions.requestTrust()
-            explainMissingPermission()
+            Log.app.error("event tap could not be created")
+        }
+
+        if !permissions.isComplete {
+            Permissions.request(permissions)
+            explainMissingPermissions(permissions)
         }
     }
 
@@ -65,20 +71,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Alerts
 
-    private func explainMissingPermission() {
+    private func explainMissingPermissions(_ state: Permissions.State) {
         let alert = NSAlert()
-        alert.messageText = "LayoutFix needs Accessibility access"
+        alert.messageText = "LayoutFix needs permission: \(state.missing.joined(separator: " and "))"
         alert.informativeText = """
-            LayoutFix watches for words typed in the wrong keyboard layout, so \
-            macOS requires Accessibility permission before it can see the keyboard.
+            LayoutFix needs two separate permissions, in two different lists in \
+            System Settings > Privacy & Security:
 
-            Open Privacy & Security > Accessibility, enable LayoutFix, then \
-            launch it again.
+              Input Monitoring  - to notice a word typed in the wrong layout
+              Accessibility     - to replace it
+
+            Enable LayoutFix under \(state.missing.joined(separator: " and ")), \
+            then quit and launch it again.
             """
-        alert.addButton(withTitle: "Open Settings")
+        if !state.canListen { alert.addButton(withTitle: "Open Input Monitoring") }
+        if !state.canPost { alert.addButton(withTitle: "Open Accessibility") }
         alert.addButton(withTitle: "Later")
-        if alert.runModal() == .alertFirstButtonReturn {
+
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            if state.canListen { Permissions.openAccessibilitySettings() }
+            else { Permissions.openInputMonitoringSettings() }
+        case .alertSecondButtonReturn where !state.canListen && !state.canPost:
             Permissions.openAccessibilitySettings()
+        default:
+            break
         }
     }
 

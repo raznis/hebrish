@@ -21,9 +21,21 @@ Xcode needed).
 make lexicon && make install
 ```
 
-Then open `/Applications/LayoutFix.app` and grant Accessibility access:
-**System Settings → Privacy & Security → Accessibility → enable LayoutFix**.
-A keyboard event tap cannot work without it. Quit and relaunch afterwards.
+Then open `/Applications/LayoutFix.app` and grant it **two** permissions, which
+live in two different lists under **System Settings → Privacy & Security**:
+
+| Grant | Why |
+|---|---|
+| **Input Monitoring** | to notice a word typed in the wrong layout |
+| **Accessibility** | to replace it |
+
+Enable LayoutFix in both, then quit and relaunch it.
+
+These are genuinely separate, and the failure mode is quiet: without Input
+Monitoring, `CGEvent.tapCreate` still returns a valid tap and simply delivers
+nothing — so an app can look like it is running while being completely deaf.
+The menu's **Keys seen** counter is the honest check; it stays at 0 until Input
+Monitoring is granted. *Diagnostics…* reports both grants.
 
 Turn on *Open at Login* from the menu-bar menu to have it start with the Mac.
 
@@ -35,9 +47,10 @@ bakes them, together with `/usr/share/dict/words`, into
 ## Using it
 
 There is no configuration to speak of. The menu bar shows **א** while active
-and a struck-through **a** while paused, plus a count of corrections and the
-last one made. *Diagnostics…* reports everything the app can see about its own
-environment — the first place to look if it seems inert.
+and a struck-through **a** while paused or lacking permission, plus how many
+key events it has seen, a count of corrections, and the last one made.
+*Diagnostics…* reports everything the app can see about its own environment —
+the first place to look if it seems inert.
 
 Two behaviours worth knowing:
 
@@ -182,8 +195,9 @@ Injection behaviour is the one thing tests cannot cover. Checklist:
 ### Known limitations
 
 - **A rebuild changes the ad-hoc signature**, so macOS may ask you to re-grant
-  Accessibility access after `make install`. Signing with a stable self-signed
-  identity avoids this.
+  both permissions after `make install`. Removing and re-adding the entry in
+  the list clears a stale grant. Signing with a stable self-signed identity
+  avoids the problem.
 - **Injection fidelity varies by app.** Text is posted one character at a time
   as a Unicode string, which is what text expanders do and works nearly
   everywhere, but Electron apps and terminals are occasionally fussy about event

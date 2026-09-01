@@ -24,13 +24,14 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     private func refreshIcon() {
         guard let button = statusItem.button else { return }
-        let on = settings.isEnabled && coordinator.isRunning
+        let on = settings.isEnabled && coordinator.isRunning && Permissions.state.isComplete
         // Aleph when active, struck through when not: readable at menu-bar size
         // and needs no asset.
         button.title = on ? "א" : "a\u{0338}"
         button.toolTip = on
             ? "LayoutFix: watching for wrong-layout typing"
-            : "LayoutFix: paused"
+            : (Permissions.state.isComplete ? "LayoutFix: paused"
+                                            : "LayoutFix: permission needed")
     }
 
     // MARK: - Menu
@@ -39,10 +40,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         menu.removeAllItems()
         let stats = coordinator.snapshot
 
-        if !coordinator.isRunning {
-            add(menu, "Accessibility access needed", action: nil)
-            add(menu, "Open Privacy & Security settings...",
-                action: #selector(openSettings), target: self)
+        let permissions = Permissions.state
+        if !permissions.isComplete {
+            add(menu, "Permission needed: \(permissions.missing.joined(separator: ", "))",
+                action: nil)
+            if !permissions.canListen {
+                add(menu, "Open Input Monitoring settings...",
+                    action: #selector(openInputMonitoring), target: self)
+            }
+            if !permissions.canPost {
+                add(menu, "Open Accessibility settings...",
+                    action: #selector(openSettings), target: self)
+            }
             menu.addItem(.separator())
         }
 
@@ -52,6 +61,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        add(menu, "Keys seen: \(stats.keyEventsSeen)", action: nil)
         add(menu, "Corrections this session: \(stats.corrections)", action: nil)
         if let last = stats.lastCorrection {
             let from = last.original.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -99,7 +109,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         alert.messageText = "LayoutFix diagnostics"
         alert.informativeText = Diagnose.summary()
         alert.addButton(withTitle: "OK")
-        if !Permissions.isTrusted {
+        if !Permissions.state.isComplete {
             alert.addButton(withTitle: "Open Settings")
         }
         if alert.runModal() == .alertSecondButtonReturn {
@@ -109,6 +119,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     @objc private func openSettings() {
         Permissions.openAccessibilitySettings()
+    }
+
+    @objc private func openInputMonitoring() {
+        Permissions.openInputMonitoringSettings()
     }
 
     @objc private func quit() {
