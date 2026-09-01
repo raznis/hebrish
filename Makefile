@@ -69,8 +69,11 @@ lexicon: data build
 	  --sys-words $(SYS_WORDS) \
 	  --out Resources/lexicon.bin
 
-eval: build
-	$(BIN_PATH)/LayoutFixEval --lexicon Resources/lexicon.bin $(EVAL_ARGS)
+# The harness builds its own lexicons (including held-out ones) from the raw
+# lists, so it takes data/ rather than the baked blob.
+eval: data build
+	$(BIN_PATH)/LayoutFixEval --en data/en_50k.txt --he data/he_50k.txt \
+	  --sys-words $(SYS_WORDS) $(EVAL_ARGS)
 
 # --- app bundle --------------------------------------------------------------
 
