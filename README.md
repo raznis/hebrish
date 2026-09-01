@@ -37,6 +37,26 @@ nothing — so an app can look like it is running while being completely deaf.
 The menu's **Keys seen** counter is the honest check; it stays at 0 until Input
 Monitoring is granted. *Diagnostics…* reports both grants.
 
+### If it stays deaf
+
+The menu's **Keys seen** counter is the ground truth. If it sits at 0 even
+though both switches look enabled, the grant is stale: LayoutFix is ad-hoc
+signed, so macOS binds each permission to the binary's *hash*, and any rebuild
+silently invalidates it while leaving the switch showing on. Two copies of the
+bundle at different paths produce two entries and the same confusion.
+
+Clear it and start over:
+
+```bash
+pkill -x LayoutFixApp
+tccutil reset ListenEvent com.raznissim.layoutfix
+tccutil reset Accessibility com.raznissim.layoutfix
+open /Applications/LayoutFix.app
+```
+
+Then grant both again. Keep exactly one copy of the app — if you have built it
+locally, `rm -rf build/LayoutFix.app` after installing.
+
 Turn on *Open at Login* from the menu-bar menu to have it start with the Mac.
 
 `make lexicon` downloads two frequency lists (~1.4 MB) from

@@ -22,6 +22,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         coordinator.onStateChange = { [weak self] in self?.refreshIcon() }
     }
 
+    /// Re-read permission state and redraw. Called by the permission poll.
+    func refresh() { refreshIcon() }
+
     private func refreshIcon() {
         guard let button = statusItem.button else { return }
         let on = settings.isEnabled && coordinator.isRunning && Permissions.state.isComplete
@@ -105,6 +108,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     /// Runs the same checks as `--diagnose` and shows them in an alert, since a
     /// menu-bar app has no console the user can read.
     @objc private func showDiagnostics() {
+        NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.messageText = "LayoutFix diagnostics"
         alert.informativeText = Diagnose.summary()
