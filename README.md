@@ -81,6 +81,40 @@ Turn on *Open at Login* from the menu-bar menu to have it start with the Mac.
 bakes them, together with `/usr/share/dict/words`, into
 `Resources/lexicon.bin`. Both lists are OpenSubtitles-derived and CC-BY-SA 4.0.
 
+## Sharing it with another Mac
+
+**Building from source is the easy path**, and not for the usual reasons: a
+locally built app carries no quarantine flag, so Gatekeeper never gets involved.
+On the other Mac:
+
+```bash
+git clone <this repo> && cd layoutfix && make install
+```
+
+That fetches the language data, bakes the lexicon, builds, signs and installs in
+one step. It needs only the Command Line Tools (`xcode-select --install`), not
+Xcode. Then grant the two permissions above.
+
+**If they would rather not build it**, `make dist` produces a universal
+(Apple Silicon + Intel) `dist/LayoutFix.zip`, about 2 MB. Send them that, and
+they must clear the quarantine flag after downloading:
+
+```bash
+unzip LayoutFix.zip -d /Applications/
+xattr -dr com.apple.quarantine /Applications/LayoutFix.app
+open /Applications/LayoutFix.app
+```
+
+The `xattr` step is not optional. LayoutFix is ad-hoc signed, not signed with a
+Developer ID and not notarized, so a downloaded copy is quarantined and macOS
+will refuse to launch it — reporting it as damaged or from an unidentified
+developer. Removing the flag is what lets it run. Distributing it without that
+warning would just waste their time.
+
+`make dist` writes only to `dist/` and deliberately never touches
+`/Applications`: TCC binds each permission to the exact binary hash, so
+overwriting an installed copy silently revokes a working grant.
+
 ## Using it
 
 There is no configuration to speak of. The menu bar shows **א** while active
