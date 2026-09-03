@@ -88,7 +88,7 @@ locally built app carries no quarantine flag, so Gatekeeper never gets involved.
 On the other Mac:
 
 ```bash
-git clone <this repo> && cd layoutfix && make install
+git clone https://github.com/raznis/layoutfix.git && cd layoutfix && make install
 ```
 
 That fetches the language data, bakes the lexicon, builds, signs and installs in
