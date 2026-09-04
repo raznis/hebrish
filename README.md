@@ -135,8 +135,9 @@ Two behaviours worth knowing:
   **⌘⌥Z**). It never takes keyboard focus, so clicking Undo does not disturb
   what you were typing.
 - **Undo teaches it.** Rejecting a correction records that word permanently, so
-  the same word is never converted again — including via the lookback path. The
-  menu lists what has been rejected and can forget it all.
+  the same word is never converted again — including via the lookback path.
+  *Rejected Words* in the menu lists them; click any one to allow correcting it
+  again, or *Forget All* to clear the lot.
 
 The panel is worth keeping on: a correction you do not notice is one you cannot
 judge. Turn it off from the menu if you would rather not see it.
@@ -214,8 +215,8 @@ This is a process that can see every keystroke, and it is built accordingly.
 - **One thing typed is stored, and only one.** When you undo a correction,
   the word you rejected is saved so it is never corrected again. That list is
   the *only* durable trace LayoutFix keeps of anything typed: it holds only
-  words you actively rejected, is capped at 500 entries, is listed in the menu,
-  and *Forget Rejected Words…* clears it.
+  words you actively rejected, is capped at 500 entries, and is fully visible
+  and editable from the menu — remove any single word, or forget all of them.
 - **Nothing else typed is written to disk.** The buffer is in-memory, bounded to
   64 keystrokes, and overwritten on reset. Typed text reaches the log only at
   `debug` level and marked `private`, so it is redacted by default and not
@@ -281,6 +282,12 @@ Injection behaviour is the one thing tests cannot cover. Checklist:
 | Terminal | | |
 
 ### Verifying the toast
+
+`LayoutFixApp --demo-menu` prints the whole menu as a tree, including the
+rejected-words submenu and the hidden identifier behind each row, which is
+otherwise only checkable by opening the menu by hand. It runs against a scratch
+preferences domain, never your own, so printing a diagnostic cannot disturb the
+list it describes.
 
 `LayoutFixApp --demo-toast` shows a sample panel for 20 seconds and prints what
 matters about it: that the app stayed inactive, that the panel cannot become

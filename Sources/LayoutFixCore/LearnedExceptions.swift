@@ -57,11 +57,53 @@ public struct LearnedExceptions: Sendable, Equatable {
     public var count: Int { keys.count }
     public var isEmpty: Bool { keys.isEmpty }
 
-    /// Human-readable, most recent first, for the menu.
-    public var descriptions: [String] {
-        keys.reversed().map { key in
-            guard let separator = key.firstIndex(of: ":") else { return key }
-            return String(key[key.index(after: separator)...])
+    /// One rejected word, with the layout it was typed under.
+    ///
+    /// The script is carried rather than discarded because the same characters
+    /// can be rejected under either layout, and removing one must not silently
+    /// take the other with it.
+    public struct Entry: Sendable, Equatable, Hashable {
+        public let word: String
+        public let script: Script
+
+        public var storageKey: String {
+            LearnedExceptions.key(typed: word, script: script)
         }
+
+        public init(word: String, script: Script) {
+            self.word = word
+            self.script = script
+        }
+
+        /// Parse a stored key back into an entry. Words are normalised to
+        /// letters and apostrophes, so the first colon is unambiguously the
+        /// separator.
+        public init?(storageKey: String) {
+            guard let separator = storageKey.firstIndex(of: ":") else { return nil }
+            guard let script = Script(rawValue: String(storageKey[..<separator])) else { return nil }
+            let word = String(storageKey[storageKey.index(after: separator)...])
+            guard !word.isEmpty else { return nil }
+            self.init(word: word, script: script)
+        }
+    }
+
+    /// Rejected words, most recently rejected first -- the order to show them
+    /// in, since the newest is the one most likely to have been a mistake.
+    public var entries: [Entry] {
+        keys.reversed().compactMap(Entry.init(storageKey:))
+    }
+
+    /// Stop blocking one specific word, leaving the rest alone.
+    public mutating func remove(_ entry: Entry) {
+        remove(storageKey: entry.storageKey)
+    }
+
+    public mutating func remove(storageKey: String) {
+        keys.removeAll { $0 == storageKey }
+    }
+
+    /// Human-readable, most recent first.
+    public var descriptions: [String] {
+        entries.map(\.word)
     }
 }

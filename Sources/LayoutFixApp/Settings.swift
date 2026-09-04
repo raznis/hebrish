@@ -9,7 +9,7 @@ import LayoutFixCore
 /// overwritten on reset. The exception list is capped, visible in the menu, and
 /// clearable in one action, because it is the only durable trace the app keeps.
 final class Settings {
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
 
     private enum Key {
         static let enabled = "enabled"
@@ -33,7 +33,10 @@ final class Settings {
         "com.apple.loginwindow",
     ]
 
-    init() {
+    /// - Parameter defaults: injectable so diagnostics can run against a
+    ///   scratch domain instead of the user's real preferences.
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         defaults.register(defaults: [
             Key.enabled: true,
             Key.deniedBundleIDs: Settings.defaultDeniedBundleIDs,

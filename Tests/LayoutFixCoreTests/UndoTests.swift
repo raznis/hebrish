@@ -199,3 +199,99 @@ struct RejectAndLearnTests {
         #expect(!engine.exceptions.contains(typed: "vusv", script: .latin))
     }
 }
+
+@Suite("Removing individual rejected words")
+struct ExceptionRemovalTests {
+
+    var populated: LearnedExceptions {
+        var e = LearnedExceptions()
+        e.insert(typed: "gus", script: .latin)
+        e.insert(typed: "akuo", script: .latin)
+        e.insert(typed: "שד", script: .hebrew)
+        return e
+    }
+
+    @Test("entries expose the word and the layout it came from")
+    func entriesCarryScript() {
+        let entries = populated.entries
+        #expect(entries.count == 3)
+        // Most recently rejected first.
+        #expect(entries[0] == LearnedExceptions.Entry(word: "שד", script: .hebrew))
+        #expect(entries[2] == LearnedExceptions.Entry(word: "gus", script: .latin))
+    }
+
+    @Test("removing one word leaves the others blocked")
+    func removeIsSpecific() {
+        var exceptions = populated
+        exceptions.remove(LearnedExceptions.Entry(word: "akuo", script: .latin))
+        #expect(exceptions.count == 2)
+        #expect(!exceptions.contains(typed: "akuo", script: .latin))
+        #expect(exceptions.contains(typed: "gus", script: .latin))
+        #expect(exceptions.contains(typed: "שד", script: .hebrew))
+    }
+
+    /// The same characters can be rejected under either layout. Removing one
+    /// must not take the other with it.
+    @Test("removal does not cross scripts")
+    func removalDoesNotCrossScripts() {
+        var exceptions = LearnedExceptions()
+        exceptions.insert(typed: "gus", script: .latin)
+        exceptions.insert(typed: "gus", script: .hebrew)
+        #expect(exceptions.count == 2)
+
+        exceptions.remove(LearnedExceptions.Entry(word: "gus", script: .latin))
+        #expect(!exceptions.contains(typed: "gus", script: .latin))
+        #expect(exceptions.contains(typed: "gus", script: .hebrew))
+    }
+
+    @Test("removing something absent is a no-op")
+    func removeAbsentIsHarmless() {
+        var exceptions = populated
+        exceptions.remove(LearnedExceptions.Entry(word: "nothere", script: .latin))
+        #expect(exceptions.count == 3)
+    }
+
+    @Test("an entry round-trips through its storage key")
+    func entryRoundTrip() {
+        for entry in populated.entries {
+            #expect(LearnedExceptions.Entry(storageKey: entry.storageKey) == entry)
+        }
+    }
+
+    @Test("malformed storage keys are rejected, not guessed at", arguments: [
+        "", "noseparator", ":", "latin:", "klingon:word",
+    ])
+    func malformedKeys(key: String) {
+        #expect(LearnedExceptions.Entry(storageKey: key) == nil)
+    }
+
+    /// A word un-rejected in the menu must actually be correctable again.
+    @Test("un-rejecting restores correction", .enabled(if: BakedLexicon.available))
+    func unrejectingRestoresCorrection() throws {
+        guard let lexicon = BakedLexicon.shared else { throw LexiconFormat.Error.badMagic }
+        let engine = CorrectionEngine(pair: Fixture.pair, scorer: Scorer(lexicon: lexicon))
+
+        func typeAkuo() -> Correction? {
+            engine.reset(.manual)
+            var t = 1.0
+            var result: Correction?
+            for ch in "akuo " {
+                guard let kc = Fixture.pair.latin.keycodeForChar[String(ch)] else { continue }
+                if let c = engine.handleKeyDown(keycode: kc, shift: false,
+                                                hasCommandControlOrOption: false,
+                                                activeScript: .latin, timestamp: t) {
+                    result = c
+                }
+                t += 0.05
+            }
+            return result
+        }
+
+        engine.exceptions.insert(typed: "akuo", script: .latin)
+        #expect(typeAkuo() == nil, "blocked while rejected")
+
+        engine.exceptions.remove(LearnedExceptions.Entry(word: "akuo", script: .latin))
+        let restored = try #require(typeAkuo(), "should correct again once un-rejected")
+        #expect(restored.replacement == "שלום ")
+    }
+}

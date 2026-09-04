@@ -39,6 +39,13 @@ final class MenuBarController: NSObject, NSMenuDelegate {
 
     // MARK: - Menu
 
+    /// Build the menu without opening it, for `--demo-menu`.
+    func debugMenu() -> NSMenu {
+        let menu = NSMenu()
+        menuNeedsUpdate(menu)
+        return menu
+    }
+
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
         let stats = coordinator.snapshot
@@ -81,11 +88,10 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         if learned.isEmpty {
             add(menu, "No words rejected yet", action: nil)
         } else {
-            let sample = learned.descriptions.prefix(5).joined(separator: ", ")
-            add(menu, "Never correcting \(learned.count) word(s)", action: nil)
-            add(menu, "   \(sample)\(learned.count > 5 ? ", ..." : "")", action: nil)
-            add(menu, "Forget Rejected Words...",
-                action: #selector(forgetLearned), target: self)
+            let item = NSMenuItem(title: "Rejected Words (\(learned.count))",
+                                  action: nil, keyEquivalent: "")
+            item.submenu = rejectedWordsMenu(learned)
+            menu.addItem(item)
         }
 
         let toastItem = add(menu, "Show Notification on Correction",
@@ -119,6 +125,73 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func toggleEnabled() {
         coordinator.isEnabled.toggle()
         refreshIcon()
+    }
+
+    // MARK: - Rejected words
+
+    /// How many words to list before falling back to "and N more".
+    ///
+    /// A menu is the right home for a handful of entries and the wrong one for
+    /// hundreds; past this the list stops being scannable and Forget All is the
+    /// more honest offer.
+    private static let maxListedWords = 30
+
+    private func rejectedWordsMenu(_ learned: LearnedExceptions) -> NSMenu {
+        let submenu = NSMenu()
+
+        let header = NSMenuItem(title: "Click a word to allow correcting it again",
+                                action: nil, keyEquivalent: "")
+        header.isEnabled = false
+        submenu.addItem(header)
+        submenu.addItem(.separator())
+
+        let entries = learned.entries
+
+        // The same characters can be rejected under either layout, which would
+        // otherwise show as two identical rows the user cannot choose between.
+        // Only label the layout when it is actually needed to tell them apart,
+        // so the ordinary case stays uncluttered.
+        let duplicated = Dictionary(grouping: entries, by: \.word)
+            .filter { $0.value.count > 1 }
+            .keys
+
+        for entry in entries.prefix(MenuBarController.maxListedWords) {
+            let title = duplicated.contains(entry.word)
+                ? "\(entry.word)  (\(entry.script == .latin ? "English" : "Hebrew") layout)"
+                : entry.word
+            let item = NSMenuItem(title: title,
+                                  action: #selector(unrejectWord(_:)), keyEquivalent: "")
+            item.target = self
+            // Carry the storage key, not just the word: it is what identifies
+            // which of the two to remove.
+            item.representedObject = entry.storageKey
+            submenu.addItem(item)
+        }
+
+        if entries.count > MenuBarController.maxListedWords {
+            let more = NSMenuItem(
+                title: "and \(entries.count - MenuBarController.maxListedWords) more...",
+                action: nil, keyEquivalent: "")
+            more.isEnabled = false
+            submenu.addItem(more)
+        }
+
+        submenu.addItem(.separator())
+        let forget = NSMenuItem(title: "Forget All Rejected Words...",
+                                action: #selector(forgetLearned), keyEquivalent: "")
+        forget.target = self
+        submenu.addItem(forget)
+        return submenu
+    }
+
+    /// Un-reject a single word. Applied immediately and without confirmation:
+    /// it undoes nothing destructive, and rejecting again is one click away.
+    @objc private func unrejectWord(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String else { return }
+        var learned = settings.learnedExceptions
+        learned.remove(storageKey: key)
+        settings.learnedExceptions = learned
+        coordinator.reloadExceptions()
     }
 
     @objc private func undoLast() {
