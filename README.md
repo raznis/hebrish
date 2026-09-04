@@ -1,394 +1,84 @@
-# Hebrish
+<p align="center">
+  <img src="docs/icon.png" width="120" alt="Hebrish">
+</p>
 
-A macOS menu-bar agent that notices when you have typed a word in the wrong
-keyboard layout — English text on a Hebrew input source, or Hebrew text on an
-English one — rewrites it in place, and switches the input source for you.
+<h1 align="center">Hebrish</h1>
 
-Type `akuo kfo hksho uhksu,` with English active and you get
-`שלום לכם ילדים וילדות`, with the input source flipped to Hebrew, so the rest
-of the sentence lands correctly without you touching anything.
+<p align="center">
+  <b>Typed Hebrew with your keyboard still in English?</b><br>
+  Hebrish notices, fixes the word, and switches your layout — before you do.
+</p>
 
-It works because QWERTY↔Hebrew is a fixed one-to-one mapping of *physical keys*,
-so the gibberish is losslessly recoverable. The hard part is not the mapping —
-it is deciding, fast and reliably, that a conversion is warranted at all.
+<p align="center">
+  <img src="docs/demo.png" width="620" alt="Typing akuo kfo hksho uhksu, becomes שלום לכם ילדים וילדות">
+</p>
+
+<p align="center">
+  <sub>macOS 13+ · English ⇄ Hebrew · MIT</sub>
+</p>
+
+---
 
 ## Install
 
-Requires macOS 13+ and the Swift toolchain (Command Line Tools is enough — no
-Xcode needed).
-
-```bash
-make lexicon && make install
-```
-
-Then open `/Applications/Hebrish.app` and grant it **two** permissions, which
-live in two different lists under **System Settings → Privacy & Security**:
-
-| Grant | Why |
-|---|---|
-| **Input Monitoring** | to notice a word typed in the wrong layout |
-| **Accessibility** | to replace it |
-
-Enable Hebrish in both, then quit and relaunch it.
-
-These are genuinely separate, and the failure mode is quiet: without Input
-Monitoring, `CGEvent.tapCreate` still returns a valid tap and simply delivers
-nothing — so an app can look like it is running while being completely deaf.
-The menu's **Keys seen** counter is the honest check; it stays at 0 until Input
-Monitoring is granted. *Diagnostics…* reports both grants.
-
-### If the identifier will not resolve
-
-`tccutil reset ... com.raznissim.hebrish` failing with
-
-```
-No such bundle identifier: OSStatus error -10814
-```
-
-means LaunchServices has not registered the bundle — typical right after copying
-it into `/Applications`, and also why a freshly installed copy can show a
-generic icon in Spotlight and Finder. Register it and reindex:
-
-```bash
-/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Hebrish.app
-mdimport /Applications/Hebrish.app
-```
-
-Note the ordering trap: reset TCC *before* deleting an app. Once the bundle is
-gone the identifier cannot be resolved, and its entries are stranded in the
-Privacy & Security lists — removable only with the **−** button there.
-
-### If the app never appears in the lists at all
-
-A different failure from the one below, with a different cause: if Hebrish is
-missing from Input Monitoring entirely — no entry to switch on, no prompt — the
-app was signed with the **hardened runtime**. That is for notarized Developer ID
-builds; on an ad-hoc binary carrying no entitlements macOS applies its strict
-prompting policy and declines to register the app for TCC at all. `tccd` logs
-it plainly:
-
-```
-kTCCServiceListenEvent ... ReqResult(... DB Action:None ...)
-Update Access Record: kTCCServiceAccessibility ... to Denied (System Set)
-```
-
-`make` does not pass `--options runtime` for exactly this reason. If you add it
-back, this is the symptom.
-
-### If it is missing from Input Monitoring but present in Accessibility
-
-An app appears in these lists only once macOS has written a TCC record for it,
-and the Input Monitoring record is easy to lose: the prompt is asynchronous, and
-anything that blocks the main thread while it is up can swallow it. `tccd` then
-logs
-
-```
-Notifying for access kTCCServiceListenEvent ...
-... ReqResult(... DB Action:None ...)
-```
-
-which is a prompt shown and no record written — so there is nothing in the list
-to switch on. Accessibility is unaffected because a separate system agent drives
-its prompt.
-
-The fix does not need the record: in **Input Monitoring**, click **+** and choose
-`/Applications/Hebrish.app`. That creates the entry directly.
-
-(Hebrish no longer puts its own alert up straight after requesting, which was
-the cause of this. Guidance now waits 12 seconds and appears only if the system
-prompts went unanswered.)
-
-### If it stays deaf
-
-The menu's **Keys seen** counter is the ground truth. If it sits at 0 even
-though both switches look enabled, the grant is stale: Hebrish is ad-hoc
-signed, so macOS binds each permission to the binary's *hash*, and any rebuild
-silently invalidates it while leaving the switch showing on. Two copies of the
-bundle at different paths produce two entries and the same confusion.
-
-Clear it and start over:
-
-```bash
-pkill -x LayoutFixApp
-tccutil reset ListenEvent com.raznissim.hebrish
-tccutil reset Accessibility com.raznissim.hebrish
-open /Applications/Hebrish.app
-```
-
-Then grant both again. Keep exactly one copy of the app — if you have built it
-locally, `rm -rf build/Hebrish.app` after installing.
-
-Turn on *Open at Login* from the menu-bar menu to have it start with the Mac.
-
-`make lexicon` downloads two frequency lists (~1.4 MB) from
-[hermitdave/FrequencyWords](https://github.com/hermitdave/FrequencyWords) and
-bakes them, together with `/usr/share/dict/words`, into
-`Resources/lexicon.bin`. Both lists are OpenSubtitles-derived and CC-BY-SA 4.0.
-
-## Sharing it with another Mac
-
-**Building from source is the easy path**, and not for the usual reasons: a
-locally built app carries no quarantine flag, so Gatekeeper never gets involved.
-On the other Mac:
+Needs the Xcode Command Line Tools — run `xcode-select --install` if you don't
+have them.
 
 ```bash
 git clone https://github.com/raznis/hebrish.git && cd hebrish && make install
 ```
 
-That fetches the language data, bakes the lexicon, builds, signs and installs in
-one step. It needs only the Command Line Tools (`xcode-select --install`), not
-Xcode. Then grant the two permissions above.
+Open **Hebrish** from your Applications folder. It asks for two permissions,
+both under **System Settings → Privacy & Security**:
 
-**If they would rather not build it**, `make dist` produces a universal
-(Apple Silicon + Intel) `dist/Hebrish.zip`, about 2 MB. Send them that, and
-they must clear the quarantine flag after downloading:
+| Permission | Why |
+|---|---|
+| **Input Monitoring** | to notice the mistake |
+| **Accessibility** | to fix it |
 
-```bash
-unzip Hebrish.zip -d /Applications/
-xattr -dr com.apple.quarantine /Applications/Hebrish.app
-open /Applications/Hebrish.app
-```
+Enable both, then quit and reopen Hebrish. That's it.
 
-The `xattr` step is not optional. Hebrish is ad-hoc signed, not signed with a
-Developer ID and not notarized, so a downloaded copy is quarantined and macOS
-will refuse to launch it — reporting it as damaged or from an unidentified
-developer. Removing the flag is what lets it run. Distributing it without that
-warning would just waste their time.
-
-`make dist` writes only to `dist/` and deliberately never touches
-`/Applications`: TCC binds each permission to the exact binary hash, so
-overwriting an installed copy silently revokes a working grant.
+> **You also need the Hebrew keyboard layout installed** — System Settings →
+> Keyboard → Input Sources. Hebrish tells you if it is missing.
 
 ## Using it
 
-There is no configuration to speak of. The menu bar shows **א** while active
-and a struck-through **a** while paused or lacking permission, plus how many
-key events it has seen, a count of corrections, and the last one made.
-*Diagnostics…* reports everything the app can see about its own environment —
-the first place to look if it seems inert.
+There is nothing to configure. Just type.
 
-Two behaviours worth knowing:
+- **Fixes the word the moment you finish it**, and flips your input source, so
+  the rest of the sentence lands correctly.
+- **Missed the first word?** A later one settles it, and the earlier words get
+  fixed too, in one edit.
+- **Shows you what changed**, with an **Undo** button.
+- **Undo teaches it.** Reject a word once and Hebrish never touches it again.
 
-- **It fires at a word boundary**, not mid-word. Usually that is the first word,
-  so you never see the wrong text.
-- **It repairs backwards.** If the first word was too short to judge — `מה`,
-  `is` — a later word settles the question and the already-typed words are
-  fixed in the same edit.
-- **Every correction is shown, and offers Undo.** A small panel appears at the
-  bottom of the screen with what changed and an **Undo** button (or press
-  **⌘⌥Z**). It never takes keyboard focus, so clicking Undo does not disturb
-  what you were typing.
-- **Undo teaches it.** Rejecting a correction records that word permanently, so
-  the same word is never converted again — including via the lookback path.
-  *Rejected Words* in the menu lists them; click any one to allow correcting it
-  again, or *Forget All* to clear the lot.
+The **aא** in your menu bar means it is watching. Pause it, review rejected
+words, or run diagnostics from there.
 
-The panel is worth keeping on: a correction you do not notice is one you cannot
-judge. Turn it off from the menu if you would rather not see it.
+## Privacy
 
-## How it decides
+Hebrish can see every keystroke, and is built to keep as little as possible.
 
-For each token the app keeps the *keycodes*, not the characters, so both the
-Latin and the Hebrew reading are always available regardless of which layout was
-live. It then compares them as a log-likelihood ratio. Both readings come from
-the same number of key presses, so their lengths match and the ratio is a fair
-comparison rather than a length artefact.
+- **Nothing you type is saved** — except words you deliberately reject, which
+  are listed in the menu and clearable in one click.
+- **Password fields are skipped**, by two independent checks.
+- **No network access** once installed. It never phones anywhere.
 
-Each reading is scored as a mixture of:
+[The full privacy design →](docs/DESIGN.md#privacy)
 
-- **Unigram frequency** from the 50k lists, plus `/usr/share/dict/words` merged
-  into the English vocabulary as membership-only at a floor probability. That
-  asymmetry is deliberate: rare, technical and proper-noun English is exactly
-  what must not be mangled, so the floor biases errors toward *missing* a
-  correction rather than making a wrong one.
-- **A character trigram model** with stupid-backoff, trained on the same corpora
-  weighted by real frequency, which handles inflections and names the vocabulary
-  has never seen. The dictionary floor words are kept *out* of this model — 200k
-  archaic headwords would drag the spelling model away from the language people
-  actually type.
-- **Hebrew particle stripping** (ו/ה/ב/ל/כ/מ/ש), because a 50k vocabulary misses
-  many inflected forms.
-- **Orthographic vetoes.** A Hebrew final form (ך ם ן ף ץ) in non-final position
-  is impossible, and it is the single strongest signal available — `hello` typed
-  on a Hebrew layout is `יקךךם`, with a final-kaf in the middle. Vowelless Latin
-  is near-enough impossible too.
+## Not working?
 
-The margin required **scales with token length**. Two letters of agreement is
-coincidence where six is proof, so short tokens must clear a much larger bar.
-This cut false positives tenfold versus a flat threshold while keeping
-long-token recall — and it beats a hard minimum length, which would have gutted
-recall on Hebrew's many short words.
+The menu's **Keys seen** counter is the giveaway: if it is stuck at 0, Hebrish
+cannot read the keyboard, whatever System Settings claims.
 
-Once a token does fire, earlier words in the same run are re-examined under a
-relaxed rule, since the context is now established. Vocabulary membership stays
-mandatory there as the anchor that stops a loose threshold inventing words. That
-change took prefix recovery from 19.5% to 99%.
+[Troubleshooting →](docs/TROUBLESHOOTING.md)
 
-### Measured behaviour
+## More
 
-`make eval` builds the lexicons, fires a synthetic wrong-layout corpus through
-the real decision code, and reports the tradeoff. It replays
-`Scorer.shouldConvert` rather than reimplementing it, so its numbers cannot
-drift from what the app actually does.
+- [**How it works**](docs/DESIGN.md) — how it tells `akuo` from a real English
+  word, and how often it gets it right
+- [**Development**](docs/DEVELOPMENT.md) — building, tests, sharing a build
 
-At the calibrated threshold (τ = 6 nats, which the harness picks on its own):
-
-| | |
-|---|---|
-| False alarms on correctly typed text | **0** in 48,000 words |
-| Single-token false positives | 3 in 40,000 |
-| Hebrew-on-English caught by word 1 | **72.5%** |
-| …by word 2 | 92.6% |
-| …by word 6 | 100.0% |
-| English-on-Hebrew caught by word 1 | 66.2% |
-| …by word 2 | 88.6% |
-| Already-typed words repaired by lookback | 99.0% / 99.7% |
-
-Sentences are sampled frequency-weighted, so they have the same
-short-common-word problem real typing does.
-
-The harness also reports an out-of-vocabulary section, where a slice of each
-vocabulary is withheld from both the word list and the character model. Recall
-there is much lower by design — an unknown word cannot be confirmed as a word —
-which is the conservative direction.
-
-## Safety and privacy
-
-This is a process that can see every keystroke, and it is built accordingly.
-
-- **One thing typed is stored, and only one.** When you undo a correction,
-  the word you rejected is saved so it is never corrected again. That list is
-  the *only* durable trace Hebrish keeps of anything typed: it holds only
-  words you actively rejected, is capped at 500 entries, and is fully visible
-  and editable from the menu — remove any single word, or forget all of them.
-- **Nothing else typed is written to disk.** The buffer is in-memory, bounded to
-  64 keystrokes, and overwritten on reset. Typed text reaches the log only at
-  `debug` level and marked `private`, so it is redacted by default and not
-  persisted to the on-disk log store.
-- **Password fields are skipped, by two independent checks.** While
-  `IsSecureEventInputEnabled()` is true, no keystroke is examined, buffered or
-  acted on. That flag alone is not enough, though: it only goes true when an app
-  explicitly calls `EnableSecureEventInput()`, which native `NSSecureTextField`
-  does — the login window, System Settings, Keychain Access — while web password
-  fields and most Electron apps do not. So Hebrish also asks Accessibility
-  what kind of field has focus and stands down on any secure text field.
-
-  It reads the field's *role*, never its value. Hebrish has no business
-  knowing what is in a field, only what kind of field it is.
-
-  The honest limit: the second check works only where an app exposes the secure
-  subrole, and if the query fails Hebrish carries on as it would have anyway.
-  It closes most of the gap; it is not a guarantee. Which apps report what is
-  recorded in the log — see below.
-- **Password managers are excluded** by bundle ID out of the box (1Password,
-  Bitwarden, LastPass, Keychain Access, the macOS security agent).
-- **The tap is listen-only.** It cannot suppress a keystroke, so no bug here can
-  swallow your typing. The cost is that a correction has to delete and retype
-  the boundary character.
-- **Field kinds are logged, once each.** The first time a distinct
-  app-and-field-kind combination is seen, it is recorded at `info` level as e.g.
-  `com.apple.Safari AXTextField/AXSecureTextField [SECURE - standing down]`.
-  Structural identifiers and the bundle id only — never field contents, and
-  never the field's label, which can itself be revealing. This is how the
-  remaining password-field coverage gets measured against real apps:
-
-  ```bash
-  log show --last 1h --info --predicate 'subsystem == "com.raznissim.hebrish"' | grep "field kind"
-  ```
-- **The buffer is discarded** on arrow keys, Home/End/PageUp/Down, Escape,
-  backspace, any Cmd/Ctrl/Opt chord, Return, a mouse click, an app switch, a
-  manual layout switch, and a 4-second pause — anything after which the text we
-  think is on screen may not be. That last group also means lookback can never
-  reach back across a language you switched into deliberately.
-
-Undo is deliberately conservative. A correction stays reversible while we can
-still be certain where its text is: you may keep typing, and undo reaches back
-over what you added, but arrow keys, backspace, a command chord, a click
-elsewhere, an app switch or a layout change all give it up rather than risk
-deleting the wrong characters. A wrong undo would be worse than no undo.
-
-## Development
-
-```bash
-make test        # unit + integration suite
-make eval        # calibration report
-make bundle      # assemble build/Hebrish.app
-make run         # bundle, relaunch
-make install     # copy to /Applications
-```
-
-`Sources/LayoutFixCore` holds all the judgement and has no AppKit dependency:
-layout derivation, transliteration, the lexicon, the scorer, the typing buffer,
-and the correction engine. `CorrectionEngine` is pure — it is told about key
-events and returns what should happen — so the app layer only does I/O.
-
-Layout tables are derived at runtime from the enabled input sources via
-`UCKeyTranslate`, not hardcoded, so Hebrew-Standard, Hebrew-PC, Hebrew-QWERTY
-and non-US Latin layouts all work with no extra code.
-
-### Tests
-
-XCTest is unavailable in a Command Line Tools-only toolchain, so the suite uses
-swift-testing. `Testing.framework` ships with CLT but needs explicit search
-paths, which the Makefile supplies.
-
-Use `make test`, never bare `swift test`. On this toolchain
-`swiftpm-testing-helper` aborts with signal 6 during process *teardown*, after
-the tests have finished, so the exit code carries no information. Worse, the
-abort races the summary line: about one run in five it wins and no summary is
-printed, which made an earlier stdout-parsing gate report failures when nothing
-had failed.
-
-`scripts/run-tests.sh` therefore judges the run from swift-testing's JUnit XML,
-which is written before teardown and states the counts outright. It prints them,
-so a pass is legible rather than inferred:
-
-```
-==> 76 tests, 0 failures, 0 errors, 0 skipped
-==> PASS
-```
-
-### Verifying in real apps
-
-Injection behaviour is the one thing tests cannot cover. Checklist:
-
-| App | Correction lands | Layout switches |
-|---|---|---|
-| TextEdit | | |
-| Notes | | |
-| Safari (text field) | | |
-| Slack | | |
-| VS Code | | |
-| Terminal | | |
-
-### Verifying the toast
-
-`LayoutFixApp --demo-menu` prints the whole menu as a tree, including the
-rejected-words submenu and the hidden identifier behind each row, which is
-otherwise only checkable by opening the menu by hand. It runs against a scratch
-preferences domain, never your own, so printing a diagnostic cannot disturb the
-list it describes.
-
-`LayoutFixApp --demo-toast` shows a sample panel for 20 seconds and prints what
-matters about it: that the app stayed inactive, that the panel cannot become
-key, its level, and the on-screen rect of the Undo button. Useful because the
-panel is otherwise only reachable by provoking a real correction.
-
-Note that synthesised clicks cannot exercise the button from a process without
-Accessibility access — `CGEventPost` is silently dropped — so the click path has
-to be checked by hand.
-
-### Known limitations
-
-- **A rebuild changes the ad-hoc signature**, so macOS may ask you to re-grant
-  both permissions after `make install`. Removing and re-adding the entry in
-  the list clears a stale grant. Signing with a stable self-signed identity
-  avoids the problem.
-- **Injection fidelity varies by app.** Text is posted one character at a time
-  as a Unicode string, which is what text expanders do and works nearly
-  everywhere, but Electron apps and terminals are occasionally fussy about event
-  timing. `interKeyDelayMilliseconds` in `UserDefaults` is the knob.
-- **Typing during an injection can interleave.** A correction occupies roughly
-  10–50 ms; a keystroke landing inside that window can corrupt the result. Only
-  an active (suppressing) tap could close this fully.
-- **Only two scripts.** If a third input source is live, the app stands down.
+<sub>Language data derived from the
+<a href="https://github.com/hermitdave/FrequencyWords">OpenSubtitles frequency
+lists</a> (CC-BY-SA 4.0).</sub>

@@ -1,7 +1,7 @@
 #!/usr/bin/env swift
 import AppKit
 
-// Generates App/Hebrish.icns.
+// Generates App/Hebrish.icns plus the two README images.
 //
 // The app had no icon at all, which is why Spotlight and Finder showed the
 // generic placeholder. Separate artwork from the menu-bar mark: that one is a
@@ -80,3 +80,56 @@ guard task.terminationStatus == 0 else {
 try? fm.removeItem(atPath: iconset)
 let bytes = (try? fm.attributesOfItem(atPath: "App/Hebrish.icns")[.size] as? Int) ?? 0
 print("wrote App/Hebrish.icns (\(bytes) bytes)")
+
+// ---- README images -------------------------------------------------------
+// Drawn on an opaque light card rather than transparent: GitHub renders
+// READMEs in both light and dark themes, and transparent artwork looks broken
+// in one of them.
+
+try? fm.createDirectory(atPath: "docs", withIntermediateDirectories: true)
+
+func write(_ rep: NSBitmapImageRep, to path: String) throws {
+    try rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: path))
+    print("wrote \(path)")
+}
+
+// The app icon, for the README header.
+try write(drawIcon(px: 256), to: "docs/icon.png")
+
+// The one-glance explanation: what you typed, and what you get.
+func drawDemo() -> NSBitmapImageRep {
+    let w = 1240, h = 300
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h,
+                               bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+                               isPlanar: false, colorSpaceName: .deviceRGB,
+                               bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+
+    let card = NSRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h))
+    NSColor(srgbRed: 0.97, green: 0.975, blue: 0.99, alpha: 1).setFill()
+    NSBezierPath(roundedRect: card, xRadius: 26, yRadius: 26).fill()
+
+    let label = NSColor(srgbRed: 0.45, green: 0.47, blue: 0.55, alpha: 1)
+    let ink = NSColor(srgbRed: 0.11, green: 0.12, blue: 0.18, alpha: 1)
+    let accent = NSColor(srgbRed: 0.30, green: 0.36, blue: 0.86, alpha: 1)
+
+    func draw(_ text: String, _ font: NSFont, _ color: NSColor, x: CGFloat, y: CGFloat) {
+        NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: color])
+            .draw(at: NSPoint(x: x, y: y))
+    }
+
+    let labelFont = NSFont.systemFont(ofSize: 22, weight: .medium)
+    let mono = NSFont.monospacedSystemFont(ofSize: 46, weight: .medium)
+    let hebrew = NSFont.systemFont(ofSize: 50, weight: .semibold)
+
+    draw("you type", labelFont, label, x: 60, y: 218)
+    draw("akuo kfo hksho uhksu,", mono, ink, x: 60, y: 158)
+
+    draw("Hebrish gives you", labelFont, accent, x: 60, y: 96)
+    draw("שלום לכם ילדים וילדות", hebrew, ink, x: 60, y: 28)
+
+    NSGraphicsContext.restoreGraphicsState()
+    return rep
+}
+try write(drawDemo(), to: "docs/demo.png")
