@@ -399,6 +399,15 @@ let acceptanceCases: [Acceptance] = [
     .init(text: "the meeting is tomorrow morning", intended: .latin, active: .hebrew, note: ""),
     .init(text: "please review the pull request", intended: .latin, active: .hebrew, note: ""),
     .init(text: "ok thanks", intended: .latin, active: .hebrew, note: "very short"),
+    // Contractions were invisible to this harness until now: the frequency
+    // lists it builds cases from tokenise them apart, so no test case ever
+    // contained an apostrophe. That is why they shipped broken.
+    .init(text: "don't you think it's fine", intended: .latin, active: .hebrew,
+          note: "contractions"),
+    .init(text: "i'm on my way", intended: .latin, active: .hebrew,
+          note: "contractions"),
+    .init(text: "let's see what they've done", intended: .latin, active: .hebrew,
+          note: "contractions"),
 ]
 
 func reportAcceptance(scorer: Scorer, threshold: Double) {

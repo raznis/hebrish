@@ -187,13 +187,13 @@ public struct TypingBuffer {
             return .tokenCompleted
         }
 
-        guard let producedCharacter, !producedCharacter.isEmpty else {
-            // Function keys, modifiers on their own: no effect on the text.
-            return .ignored
-        }
-
+        // Membership is decided by the keycode, above; whether the key put
+        // anything on screen is a separate question. Shift on the Hebrew layout
+        // emits nothing for most letters, and such a keystroke is still part of
+        // what the user meant -- it belongs in the token, and contributes
+        // nothing to the count of characters a correction has to delete.
         current.append(KeyStroke(keycode: keycode, shift: shift))
-        pendingProducedLength += producedCharacter.count
+        pendingProducedLength += producedCharacter?.count ?? 0
 
         if current.count > capacity {
             reset(.capacity)

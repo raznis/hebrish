@@ -47,8 +47,15 @@ public struct LayoutTable: Sendable {
         self.keycodeForChar = reverse
     }
 
+    /// What this key puts on screen, or nil if it puts nothing there.
+    ///
+    /// No falling back to the unshifted character when Shift is held and the
+    /// layout has no shifted entry: on the Hebrew layout most letter keys
+    /// genuinely emit nothing with Shift (it is reserved for nikud), and
+    /// pretending otherwise made the delete count one too high per capital --
+    /// enough for a correction to eat the character to its left.
     public func char(for stroke: KeyStroke) -> String? {
-        if stroke.shift, let s = shifted[stroke.keycode] { return s }
+        if stroke.shift { return shifted[stroke.keycode] }
         return unshifted[stroke.keycode]
     }
 }

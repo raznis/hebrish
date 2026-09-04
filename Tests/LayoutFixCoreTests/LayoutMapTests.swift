@@ -22,9 +22,13 @@ enum Fixture {
         latin: LayoutTable(sourceID: "test.ABC",
                            unshifted: latinUnshifted,
                            shifted: latinUnshifted.mapValues { $0.uppercased() }),
+        // Empty on purpose: on the real Hebrew layout Shift emits nothing for
+        // letter keys -- it is reserved for nikud -- so modelling it as
+        // producing the same letter would hide exactly the bug this fixture
+        // needs to expose.
         hebrew: LayoutTable(sourceID: "test.Hebrew",
                             unshifted: hebrewUnshifted,
-                            shifted: hebrewUnshifted)
+                            shifted: [:])
     )
 
     /// Turn a literal typed on the Latin layout into the keystrokes that produced it.

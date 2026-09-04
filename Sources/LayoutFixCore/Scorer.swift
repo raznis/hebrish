@@ -258,18 +258,36 @@ public struct Scorer: Sendable {
                            verdict: verdict)
     }
 
-    /// Vocabulary membership, allowing for Hebrew's attached particles.
+    /// Vocabulary membership, allowing for Hebrew's attached particles and
+    /// English's contractions.
+    ///
+    /// This is the anchor that stops a large margin from inventing words, so
+    /// both analyses require every part to be a real vocabulary entry.
     public func isKnown(_ word: String, script: Script) -> Bool {
         if lexicon.isKnownWord(word, script: script) { return true }
-        guard script == .hebrew else { return false }
-        let particles: Set<Character> = ["ו", "ה", "ב", "ל", "כ", "מ", "ש"]
-        var stem = Substring(word)
-        var stripped = 0
-        while stripped < 2, let first = stem.first, particles.contains(first), stem.count > 2 {
-            stem = stem.dropFirst()
-            stripped += 1
-            if lexicon.isKnownWord(String(stem), script: .hebrew) { return true }
+        switch script {
+        case .hebrew:
+            let particles: Set<Character> = ["ו", "ה", "ב", "ל", "כ", "מ", "ש"]
+            var stem = Substring(word)
+            var stripped = 0
+            while stripped < 2, let first = stem.first, particles.contains(first), stem.count > 2 {
+                stem = stem.dropFirst()
+                stripped += 1
+                if lexicon.isKnownWord(String(stem), script: .hebrew) { return true }
+            }
+            return false
+        case .latin:
+            // A contraction counts as known when the base is a real word and
+            // the suffix is a real clitic: `don` + `'t`, `you` + `'re`.
+            guard let apostrophe = word.firstIndex(of: "'") else { return false }
+            let base = String(word[word.startIndex..<apostrophe])
+            let clitic = String(word[word.index(after: apostrophe)...])
+            // The clitic is looked up without its apostrophe: that is the
+            // form the baked lexicon holds. Precision comes from the
+            // latinClitics set, not from the lookup.
+            return Lexicon.latinClitics.contains(clitic)
+                && lexicon.isKnownWord(base, script: .latin)
+                && lexicon.isKnownWord(clitic, script: .latin)
         }
-        return false
     }
 }

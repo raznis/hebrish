@@ -87,9 +87,47 @@ public struct Lexicon: Sendable {
         return best
     }
 
+    /// English clitics, in the form the *baked lexicon* holds them.
+    ///
+    /// The frequency list tokenises contractions apart -- it holds `'m`, `'re`
+    /// and `'t` with real counts but never `i'm`, `you're` or `don't`, and
+    /// /usr/share/dict/words has no apostrophes at all. So every contraction is
+    /// out of vocabulary, `requireKnownWord` refuses it, and the correction
+    /// never fires. (The corpus even has `don` at 4.1M, which is `don't`
+    /// counted as two tokens.)
+    ///
+    /// Stored without their apostrophes, because `WordNormalizer.latin` trims
+    /// apostrophes from the edges of a word before baking -- reasonable for
+    /// quoted text, and it means the corpus entry `'re` is filed under `re`.
+    /// This set is therefore what makes the analysis precise: membership in it,
+    /// not the shape of the string, is what distinguishes a clitic from any
+    /// other short suffix.
+    public static let latinClitics: Set<String> = ["s", "t", "m", "re", "ll", "ve", "d"]
+
+    /// Score a Latin word, allowing for a contraction split at the apostrophe.
+    ///
+    /// Deliberately analytic rather than a hardcoded list of contractions: it
+    /// costs no new data and extends to possessives and names the 50k
+    /// vocabulary will never contain -- `Sarah's`, `Dave'd`.
+    public func logProbWithLatinClitics(_ word: String) -> Double {
+        let best = logProb(word, script: .latin)
+        guard let apostrophe = word.firstIndex(of: "'") else { return best }
+
+        let base = String(word[word.startIndex..<apostrophe])
+        let clitic = String(word[word.index(after: apostrophe)...])
+        guard base.count >= 1, Lexicon.latinClitics.contains(clitic),
+              let cliticProb = latin.unigrams[clitic] else { return best }
+
+        // Cost of positing a contraction, so a real single word stays ahead of
+        // a split analysis of the same characters.
+        let joinCost = 1.0
+        return max(best, logProb(base, script: .latin) + cliticProb - joinCost)
+    }
+
     /// Script-aware entry point used by the scorer.
     public func score(_ word: String, script: Script) -> Double {
-        script == .hebrew ? logProbWithHebrewMorphology(word) : logProb(word, script: .latin)
+        script == .hebrew ? logProbWithHebrewMorphology(word)
+                          : logProbWithLatinClitics(word)
     }
 }
 
