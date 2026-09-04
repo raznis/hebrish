@@ -47,6 +47,7 @@ help:
 	@echo "make bundle    - assemble $(APP_BUNDLE)"
 	@echo "make run       - bundle, then relaunch the agent"
 	@echo "make install   - copy the app into /Applications"
+	@echo "make icon      - regenerate App/Hebrish.icns"
 	@echo "make dist      - universal .app + zip in dist/, for another Mac"
 
 build:
@@ -72,6 +73,10 @@ data/he_50k.txt:
 	curl -fsSL "$(FREQ_BASE)/he/he_50k.txt" -o $@
 	@echo "fetched $@ ($$(wc -l < $@) lines)"
 
+# Regenerate the app icon. Committed, so a fresh clone does not need this.
+icon:
+	swift scripts/make-appicon.swift
+
 lexicon: Resources/lexicon.bin
 
 Resources/lexicon.bin: data build
@@ -96,6 +101,7 @@ bundle: build Resources/lexicon.bin
 	cp App/Info.plist $(CONTENTS)/Info.plist
 	@printf 'APPL????' > $(CONTENTS)/PkgInfo
 	cp Resources/lexicon.bin $(CONTENTS)/Resources/lexicon.bin
+	cp App/Hebrish.icns $(CONTENTS)/Resources/Hebrish.icns
 	@$(MAKE) --no-print-directory sign
 	@echo "built $(APP_BUNDLE)"
 
@@ -145,6 +151,7 @@ dist: Resources/lexicon.bin
 	cp App/Info.plist $(DIST_CONTENTS)/Info.plist
 	@printf 'APPL????' > $(DIST_CONTENTS)/PkgInfo
 	cp Resources/lexicon.bin $(DIST_CONTENTS)/Resources/lexicon.bin
+	cp App/Hebrish.icns $(DIST_CONTENTS)/Resources/Hebrish.icns
 	codesign --force --sign - --identifier $(BUNDLE_ID) \
 	  --timestamp=none $(DIST_APP) 2>&1 | grep -v '^$$' || true
 	cd $(DIST_DIR) && zip -qry $(APP_NAME).zip $(APP_NAME).app

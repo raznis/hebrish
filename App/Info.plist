@@ -5,6 +5,7 @@
     <key>CFBundleName</key>            <string>Hebrish</string>
     <key>CFBundleDisplayName</key>     <string>Hebrish</string>
     <key>CFBundleExecutable</key>      <string>Hebrish</string>
+    <key>CFBundleIconFile</key>        <string>Hebrish</string>
     <key>CFBundleIdentifier</key>      <string>com.raznissim.hebrish</string>
     <key>CFBundlePackageType</key>     <string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1.0</string>

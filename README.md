@@ -37,6 +37,27 @@ nothing — so an app can look like it is running while being completely deaf.
 The menu's **Keys seen** counter is the honest check; it stays at 0 until Input
 Monitoring is granted. *Diagnostics…* reports both grants.
 
+### If the identifier will not resolve
+
+`tccutil reset ... com.raznissim.hebrish` failing with
+
+```
+No such bundle identifier: OSStatus error -10814
+```
+
+means LaunchServices has not registered the bundle — typical right after copying
+it into `/Applications`, and also why a freshly installed copy can show a
+generic icon in Spotlight and Finder. Register it and reindex:
+
+```bash
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Hebrish.app
+mdimport /Applications/Hebrish.app
+```
+
+Note the ordering trap: reset TCC *before* deleting an app. Once the bundle is
+gone the identifier cannot be resolved, and its entries are stranded in the
+Privacy & Security lists — removable only with the **−** button there.
+
 ### If the app never appears in the lists at all
 
 A different failure from the one below, with a different cause: if Hebrish is
