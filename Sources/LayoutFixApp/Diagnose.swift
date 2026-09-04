@@ -49,6 +49,11 @@ enum Diagnose {
                   \(permissions.missing.joined(separator: "\n  "))
                 then quit and relaunch it.
 
+                If LayoutFix is not listed there at all, add it by hand: click +
+                and choose /Applications/LayoutFix.app. An app only appears in
+                these lists once macOS has recorded a request for it, and that
+                record is sometimes never written -- the + button works anyway.
+
                 Note: CGEvent.tapCreate succeeds without Input Monitoring and then
                 delivers nothing, so a running tap is no evidence that it works.
                 The menu's "Keys seen" counter is the real check -- it stays at 0

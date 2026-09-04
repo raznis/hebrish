@@ -54,6 +54,29 @@ Update Access Record: kTCCServiceAccessibility ... to Denied (System Set)
 `make` does not pass `--options runtime` for exactly this reason. If you add it
 back, this is the symptom.
 
+### If it is missing from Input Monitoring but present in Accessibility
+
+An app appears in these lists only once macOS has written a TCC record for it,
+and the Input Monitoring record is easy to lose: the prompt is asynchronous, and
+anything that blocks the main thread while it is up can swallow it. `tccd` then
+logs
+
+```
+Notifying for access kTCCServiceListenEvent ...
+... ReqResult(... DB Action:None ...)
+```
+
+which is a prompt shown and no record written — so there is nothing in the list
+to switch on. Accessibility is unaffected because a separate system agent drives
+its prompt.
+
+The fix does not need the record: in **Input Monitoring**, click **+** and choose
+`/Applications/LayoutFix.app`. That creates the entry directly.
+
+(LayoutFix no longer puts its own alert up straight after requesting, which was
+the cause of this. Guidance now waits 12 seconds and appears only if the system
+prompts went unanswered.)
+
 ### If it stays deaf
 
 The menu's **Keys seen** counter is the ground truth. If it sits at 0 even

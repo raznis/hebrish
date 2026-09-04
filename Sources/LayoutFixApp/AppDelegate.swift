@@ -80,9 +80,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if !permissions.isComplete {
+            // Let the system's own prompts run, and do NOT put a modal alert up
+            // behind them.
+            //
+            // This used to show guidance immediately after requesting, and the
+            // modal swallowed the Input Monitoring prompt: tccd logged
+            // "Notifying for access kTCCServiceListenEvent" and then
+            // "DB Action:None", meaning no record was written at all -- so the
+            // app never appeared in the Input Monitoring list and there was
+            // nothing for the user to switch on. Accessibility survived only
+            // because its prompt is driven by a separate system agent.
             Permissions.request(permissions)
-            explainMissingPermissions(permissions)
             watchForPermissionGrant()
+            explainLaterIfStillMissing()
         }
     }
 
@@ -153,6 +163,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .path
     }
 
+    /// Show guidance only if the system prompts went unanswered.
+    ///
+    /// Delayed so it cannot compete with those prompts for the main thread.
+    private func explainLaterIfStillMissing() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12) { [weak self] in
+            let state = Permissions.state
+            guard !state.isComplete else { return }
+            self?.explainMissingPermissions(state)
+        }
+    }
+
     private func explainMissingPermissions(_ state: Permissions.State) {
         let alert = NSAlert()
         alert.messageText = "LayoutFix needs permission: \(state.missing.joined(separator: " and "))"
@@ -165,6 +186,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             Enable LayoutFix under \(state.missing.joined(separator: " and ")), \
             then quit and launch it again.
+
+            If LayoutFix is not listed at all, add it by hand: click + in that \
+            list and choose
+
+              /Applications/LayoutFix.app
+
+            An app only appears there once macOS has recorded a request for it, \
+            and that record can be missing entirely -- the + button works \
+            regardless.
             """
         if !state.canListen { alert.addButton(withTitle: "Open Input Monitoring") }
         if !state.canPost { alert.addButton(withTitle: "Open Accessibility") }
