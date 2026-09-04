@@ -42,6 +42,9 @@ public enum ResetReason: String, Sendable {
     case correctionApplied
     case capacity
     case secureInput
+    /// The focused field is a secure text field, even though the global
+    /// secure-input flag is not set -- typical of web password fields.
+    case secureField
     case manual
 }
 

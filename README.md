@@ -244,13 +244,36 @@ This is a process that can see every keystroke, and it is built accordingly.
   64 keystrokes, and overwritten on reset. Typed text reaches the log only at
   `debug` level and marked `private`, so it is redacted by default and not
   persisted to the on-disk log store.
-- **Password fields are skipped entirely.** While `IsSecureEventInputEnabled()`
-  is true no keystroke is examined, buffered, or acted on.
+- **Password fields are skipped, by two independent checks.** While
+  `IsSecureEventInputEnabled()` is true, no keystroke is examined, buffered or
+  acted on. That flag alone is not enough, though: it only goes true when an app
+  explicitly calls `EnableSecureEventInput()`, which native `NSSecureTextField`
+  does — the login window, System Settings, Keychain Access — while web password
+  fields and most Electron apps do not. So LayoutFix also asks Accessibility
+  what kind of field has focus and stands down on any secure text field.
+
+  It reads the field's *role*, never its value. LayoutFix has no business
+  knowing what is in a field, only what kind of field it is.
+
+  The honest limit: the second check works only where an app exposes the secure
+  subrole, and if the query fails LayoutFix carries on as it would have anyway.
+  It closes most of the gap; it is not a guarantee. Which apps report what is
+  recorded in the log — see below.
 - **Password managers are excluded** by bundle ID out of the box (1Password,
   Bitwarden, LastPass, Keychain Access, the macOS security agent).
 - **The tap is listen-only.** It cannot suppress a keystroke, so no bug here can
   swallow your typing. The cost is that a correction has to delete and retype
   the boundary character.
+- **Field kinds are logged, once each.** The first time a distinct
+  app-and-field-kind combination is seen, it is recorded at `info` level as e.g.
+  `com.apple.Safari AXTextField/AXSecureTextField [SECURE - standing down]`.
+  Structural identifiers and the bundle id only — never field contents, and
+  never the field's label, which can itself be revealing. This is how the
+  remaining password-field coverage gets measured against real apps:
+
+  ```bash
+  log show --last 1h --info --predicate 'subsystem == "com.raznissim.layoutfix"' | grep "field kind"
+  ```
 - **The buffer is discarded** on arrow keys, Home/End/PageUp/Down, Escape,
   backspace, any Cmd/Ctrl/Opt chord, Return, a mouse click, an app switch, a
   manual layout switch, and a 4-second pause — anything after which the text we

@@ -294,6 +294,16 @@ final class Coordinator {
                 invalidateUndo()
                 return
             }
+            // The global flag above misses web password fields and most
+            // Electron ones, so also ask what kind of field has focus.
+            if let field = FocusedField.inspect() {
+                noteFieldKind(field)
+                if field.isSecure {
+                    engine.reset(.secureField)
+                    invalidateUndo()
+                    return
+                }
+            }
             guard settings.isEnabled else { return }
             if let bundleID = frontmostBundleID, settings.deniedBundleIDs.contains(bundleID) {
                 engine.reset(.manual)
@@ -363,6 +373,24 @@ final class Coordinator {
     /// The live modifier state, for matching the undo shortcut.
     private func currentModifierFlags() -> CGEventFlags {
         CGEventFlags(rawValue: UInt64(NSEvent.modifierFlags.rawValue))
+    }
+
+    /// Field kinds already reported. Tap queue only, so no lock needed.
+    private var seenFieldKinds: Set<String> = []
+
+    /// Record each distinct kind of field once, to find out what real apps
+    /// actually expose -- Safari, Chrome and Electron apps all differ, and
+    /// whether they report a secure subrole decides how much of the password
+    /// gap this really closes.
+    ///
+    /// Structural identifiers and the app's bundle id only. Never field
+    /// contents, and never the field's label, which can itself be revealing.
+    private func noteFieldKind(_ field: FocusedField.Info) {
+        let bundleID = frontmostBundleID ?? "?"
+        let key = "\(bundleID) \(field.identity)"
+        guard !seenFieldKinds.contains(key) else { return }
+        seenFieldKinds.insert(key)
+        Log.tap.info("field kind: \(key, privacy: .public)\(field.isSecure ? " [SECURE - standing down]" : "")")
     }
 
     /// Aggregate only, logged occasionally, so "is the tap alive?" is
