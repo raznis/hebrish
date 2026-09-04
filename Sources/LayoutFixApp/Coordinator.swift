@@ -37,6 +37,26 @@ final class Coordinator {
     private var _activeScriptIsKnown = false
     private var _frontmostBundleID: String?
 
+    // MARK: Undo state
+    //
+    // A correction stays undoable while we can still be certain where its text
+    // is on screen. That means: the user may keep typing (we track what they
+    // add, so undo can reach back over it), but anything that could have moved
+    // the caret by other means gives up rather than risk deleting the wrong
+    // characters. A wrong undo would be worse than no undo.
+
+    /// The correction that Undo would reverse, or nil if none is safe.
+    private var _undoable: Correction?
+    /// Keys typed since that correction, so undo can reach back past them.
+    private var _typedSince: [KeyStroke] = []
+    /// Beyond this much new typing, give up rather than reconstruct it.
+    private let maxTypedSinceUndo = 48
+    /// Where the toast is on screen, so a click on it is not mistaken for the
+    /// user moving the caret.
+    private var _toastFrame: CGRect?
+
+    private let toast = ToastWindow()
+    private var undoHotKey: HotKey?
     private var observers: [Any] = []
 
     /// Called on the main queue after anything the menu displays changes.
@@ -73,13 +93,125 @@ final class Coordinator {
         refreshActiveScript()
         setFrontmost(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
         installObservers()
+
+        engine.exceptions = settings.learnedExceptions
+
+        toast.onFrameChange = { [weak self] frame in
+            guard let self else { return }
+            self.stateLock.lock()
+            self._toastFrame = frame
+            self.stateLock.unlock()
+        }
+
+        // The button on the toast is the primary way to undo; this is the
+        // keyboard alternative for anyone who would rather not reach for the
+        // mouse. Registering can fail if another app already owns the
+        // combination, which is not worth failing startup over.
+        undoHotKey = HotKey(keyCode: HotKey.undoKeyCode,
+                            carbonModifiers: HotKey.undoModifiers) { [weak self] in
+            self?.undoLastCorrection()
+        }
+        if undoHotKey == nil {
+            Log.app.info("undo shortcut unavailable (already registered by another app)")
+        }
         return true
     }
 
     func stop() {
         tap.stop()
+        undoHotKey = nil
         observers.forEach { NotificationCenter.default.removeObserver($0) }
         observers.removeAll()
+    }
+
+    // MARK: - Undo
+
+    /// Whether there is a correction that can still be safely reversed.
+    var canUndo: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return _undoable != nil
+    }
+
+    /// Reverse the last correction and remember never to make it again.
+    ///
+    /// Safe to call from anywhere; the work happens on the tap queue so it
+    /// serialises with corrections rather than racing them.
+    func undoLastCorrection() {
+        tap.queue.async { [weak self] in self?.performUndo() }
+    }
+
+    private func performUndo() {
+        stateLock.lock()
+        let correction = _undoable
+        let typedSince = _typedSince
+        _undoable = nil
+        _typedSince = []
+        stateLock.unlock()
+
+        guard let correction else { return }
+
+        // Undo has to remove what we inserted *plus* anything typed since, then
+        // put both back the way the user had them.
+        let sinceText = engine.pair.produced(typedSince, activeScript: correction.switchTo)
+        let reversal = Correction(
+            deleteCount: correction.replacement.count + sinceText.count,
+            replacement: correction.original + sinceText,
+            switchTo: correction.switchFrom,
+            switchFrom: correction.switchTo,
+            original: correction.replacement + sinceText,
+            wordCount: correction.wordCount,
+            convertedTokens: correction.convertedTokens)
+
+        Log.engine.info("undoing \(correction.wordCount, privacy: .public) word(s), \(typedSince.count, privacy: .public) key(s) typed since")
+
+        injector.apply(reversal)
+
+        // The user has told us this was wrong. Remember it, so the same word is
+        // never converted again -- an undo that has to be repeated daily is not
+        // really an undo.
+        engine.learnRejection(of: correction)
+        let learned = engine.exceptions
+        engine.reset(.manual)
+
+        stateLock.lock()
+        _stats.corrections = max(0, _stats.corrections - 1)
+        _stats.lastCorrection = nil
+        _activeScript = correction.switchFrom
+        _activeScriptIsKnown = true
+        stateLock.unlock()
+
+        let rejected = correction.convertedTokens.joined(separator: " ")
+        DispatchQueue.main.async {
+            self.settings.learnedExceptions = learned
+            self.switcher.select(correction.switchFrom)
+            if self.settings.showToast {
+                self.toast.show(message: "Reverted to “\(correction.original.trimmed)”",
+                                hint: rejected.isEmpty ? nil
+                                    : "“\(rejected)” will not be corrected again")
+            }
+            self.onStateChange?()
+        }
+    }
+
+    /// Re-read the rejected-word list from settings, after the user edits it.
+    func reloadExceptions() {
+        let stored = settings.learnedExceptions
+        tap.queue.async { self.engine.exceptions = stored }
+    }
+
+    /// Give up on undoing: we can no longer be sure where the text is.
+    private func invalidateUndo() {
+        stateLock.lock()
+        let had = _undoable != nil
+        _undoable = nil
+        _typedSince = []
+        stateLock.unlock()
+        if had {
+            DispatchQueue.main.async {
+                self.toast.dismiss()
+                self.onStateChange?()
+            }
+        }
     }
 
     // MARK: - Cached system state
@@ -143,6 +275,15 @@ final class Coordinator {
         case .interrupt(let reason):
             Log.tap.debug("reset: \(reason.rawValue, privacy: .public)")
             engine.reset(reason)
+            invalidateUndo()
+
+        case .mouseClick(let location):
+            // A click on our own toast is the user reaching for Undo, not
+            // moving the caret. Treating it as an interrupt would throw away
+            // the correction they are trying to reject.
+            if isOnToast(location) { return }
+            engine.reset(.mouseClick)
+            invalidateUndo()
 
         case .keyDown(let keycode, let shift, let chord):
             noteKeyEventSeen()
@@ -150,6 +291,7 @@ final class Coordinator {
             // or act on anything while that is true.
             if Permissions.isSecureInputEnabled {
                 engine.reset(.secureInput)
+                invalidateUndo()
                 return
             }
             guard settings.isEnabled else { return }
@@ -161,8 +303,11 @@ final class Coordinator {
             let (script, isKnown) = activeScript
             guard isKnown else {
                 engine.reset(.inputSourceChange)
+                invalidateUndo()
                 return
             }
+
+            trackForUndo(keycode: keycode, shift: shift, chord: chord, script: script)
 
             guard let correction = engine.handleKeyDown(
                 keycode: keycode, shift: shift,
@@ -172,6 +317,52 @@ final class Coordinator {
 
             apply(correction)
         }
+    }
+
+    private func isOnToast(_ location: CGPoint) -> Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        guard let frame = _toastFrame else { return false }
+        return frame.contains(location)
+    }
+
+    /// Keep undo viable while the user carries on typing.
+    ///
+    /// Ordinary typing is recorded so undo can reach back past it. Anything
+    /// that could have moved the caret another way -- arrows, backspace, a
+    /// command chord -- gives undo up instead, because reconstructing the text
+    /// after that is guesswork. The undo shortcut itself is exempt: the tap
+    /// still sees it even though Carbon consumes it, and it must not invalidate
+    /// the correction it exists to reverse.
+    private func trackForUndo(keycode: UInt16, shift: Bool, chord: Bool, script: Script) {
+        stateLock.lock()
+        guard _undoable != nil else { stateLock.unlock(); return }
+        stateLock.unlock()
+
+        if chord {
+            if let hotKey = undoHotKey,
+               hotKey.matches(keycode: keycode, flags: currentModifierFlags()) {
+                return
+            }
+            invalidateUndo()
+            return
+        }
+        if VK.navigation.contains(keycode) || keycode == VK.delete {
+            invalidateUndo()
+            return
+        }
+        guard engine.pair.table(for: script).char(for: KeyStroke(keycode: keycode, shift: shift)) != nil
+        else { return }
+
+        stateLock.lock()
+        _typedSince.append(KeyStroke(keycode: keycode, shift: shift))
+        let tooMuch = _typedSince.count > maxTypedSinceUndo
+        stateLock.unlock()
+        if tooMuch { invalidateUndo() }
+    }
+
+    /// The live modifier state, for matching the undo shortcut.
+    private func currentModifierFlags() -> CGEventFlags {
+        CGEventFlags(rawValue: UInt64(NSEvent.modifierFlags.rawValue))
     }
 
     /// Aggregate only, logged occasionally, so "is the tap alive?" is
@@ -199,6 +390,8 @@ final class Coordinator {
         _stats.lastCorrection = correction
         _activeScript = correction.switchTo
         _activeScriptIsKnown = true
+        _undoable = correction
+        _typedSince = []
         stateLock.unlock()
 
         DispatchQueue.main.async {
@@ -207,7 +400,26 @@ final class Coordinator {
             // The text is already delivered; the input source only affects keys
             // typed from here on.
             self.switcher.select(correction.switchTo)
+            if self.settings.showToast {
+                self.toast.show(message: correction.summary,
+                                hint: self.undoHotKey == nil ? nil
+                                    : "or press \(HotKey.undoDisplayName)",
+                                onUndo: { [weak self] in self?.undoLastCorrection() })
+            }
             self.onStateChange?()
         }
+    }
+}
+
+extension Correction {
+    /// One-line "what changed", for the toast and the menu.
+    var summary: String {
+        "\(original.trimmed)  →  \(replacement.trimmed)"
+    }
+}
+
+extension String {
+    var trimmed: String {
+        trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

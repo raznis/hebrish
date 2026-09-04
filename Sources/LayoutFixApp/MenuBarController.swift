@@ -67,10 +67,30 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         add(menu, "Keys seen: \(stats.keyEventsSeen)", action: nil)
         add(menu, "Corrections this session: \(stats.corrections)", action: nil)
         if let last = stats.lastCorrection {
-            let from = last.original.trimmingCharacters(in: .whitespacesAndNewlines)
-            let to = last.replacement.trimmingCharacters(in: .whitespacesAndNewlines)
-            add(menu, "   \(from)  ->  \(to)", action: nil)
+            add(menu, "   \(last.summary)", action: nil)
         }
+
+        // A second route to undo, for when the toast has already gone.
+        let undo = add(menu, "Undo Last Correction",
+                       action: #selector(undoLast), target: self)
+        undo.isEnabled = coordinator.canUndo
+
+        menu.addItem(.separator())
+
+        let learned = settings.learnedExceptions
+        if learned.isEmpty {
+            add(menu, "No words rejected yet", action: nil)
+        } else {
+            let sample = learned.descriptions.prefix(5).joined(separator: ", ")
+            add(menu, "Never correcting \(learned.count) word(s)", action: nil)
+            add(menu, "   \(sample)\(learned.count > 5 ? ", ..." : "")", action: nil)
+            add(menu, "Forget Rejected Words...",
+                action: #selector(forgetLearned), target: self)
+        }
+
+        let toastItem = add(menu, "Show Notification on Correction",
+                            action: #selector(toggleToast), target: self)
+        toastItem.state = settings.showToast ? .on : .off
 
         menu.addItem(.separator())
 
@@ -99,6 +119,36 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func toggleEnabled() {
         coordinator.isEnabled.toggle()
         refreshIcon()
+    }
+
+    @objc private func undoLast() {
+        coordinator.undoLastCorrection()
+    }
+
+    @objc private func toggleToast() {
+        settings.showToast.toggle()
+    }
+
+    /// Clearing is explicit and confirmed: the list is the only durable trace
+    /// of anything typed, so the user should be able to see the size of what
+    /// they are discarding before it goes.
+    @objc private func forgetLearned() {
+        let learned = settings.learnedExceptions
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Forget \(learned.count) rejected word(s)?"
+        alert.informativeText = """
+            LayoutFix will start correcting these words again if it thinks they \
+            were typed in the wrong layout.
+
+            \(learned.descriptions.prefix(12).joined(separator: ", "))\
+            \(learned.count > 12 ? ", ..." : "")
+            """
+        alert.addButton(withTitle: "Forget")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        settings.learnedExceptions = LearnedExceptions()
+        coordinator.reloadExceptions()
     }
 
     @objc private func toggleLoginItem() {

@@ -19,6 +19,12 @@ final class KeyTap {
         case keyDown(keycode: UInt16, shift: Bool, hasCommandControlOrOption: Bool)
         /// Anything meaning the caret may have moved or the context changed.
         case interrupt(ResetReason)
+        /// A click, with where it landed in Quartz global coordinates.
+        ///
+        /// The location matters: a click on our own undo toast must not be
+        /// treated as the user moving the caret, or it would invalidate the
+        /// very correction it is meant to undo.
+        case mouseClick(at: CGPoint)
     }
 
     /// Called on `queue` for every event of interest.
@@ -95,9 +101,10 @@ final class KeyTap {
 
         switch type {
         case .leftMouseDown, .rightMouseDown, .otherMouseDown:
-            // A click moves the caret, so whatever we buffered may no longer be
-            // where we think it is.
-            deliver(.interrupt(.mouseClick))
+            // A click usually moves the caret, so whatever we buffered may no
+            // longer be where we think it is. The Coordinator decides, since it
+            // knows whether the click landed on our own toast.
+            deliver(.mouseClick(at: event.location))
 
         case .keyDown:
             let keycode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))

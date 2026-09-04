@@ -130,6 +130,16 @@ Two behaviours worth knowing:
 - **It repairs backwards.** If the first word was too short to judge — `מה`,
   `is` — a later word settles the question and the already-typed words are
   fixed in the same edit.
+- **Every correction is shown, and offers Undo.** A small panel appears at the
+  bottom of the screen with what changed and an **Undo** button (or press
+  **⌘⌥Z**). It never takes keyboard focus, so clicking Undo does not disturb
+  what you were typing.
+- **Undo teaches it.** Rejecting a correction records that word permanently, so
+  the same word is never converted again — including via the lookback path. The
+  menu lists what has been rejected and can forget it all.
+
+The panel is worth keeping on: a correction you do not notice is one you cannot
+judge. Turn it off from the menu if you would rather not see it.
 
 ## How it decides
 
@@ -201,9 +211,15 @@ which is the conservative direction.
 
 This is a process that can see every keystroke, and it is built accordingly.
 
-- **Nothing typed is ever written to disk.** The buffer is in-memory, bounded to
+- **One thing typed is stored, and only one.** When you undo a correction,
+  the word you rejected is saved so it is never corrected again. That list is
+  the *only* durable trace LayoutFix keeps of anything typed: it holds only
+  words you actively rejected, is capped at 500 entries, is listed in the menu,
+  and *Forget Rejected Words…* clears it.
+- **Nothing else typed is written to disk.** The buffer is in-memory, bounded to
   64 keystrokes, and overwritten on reset. Typed text reaches the log only at
-  `debug` level and marked `private`, so it is redacted by default.
+  `debug` level and marked `private`, so it is redacted by default and not
+  persisted to the on-disk log store.
 - **Password fields are skipped entirely.** While `IsSecureEventInputEnabled()`
   is true no keystroke is examined, buffered, or acted on.
 - **Password managers are excluded** by bundle ID out of the box (1Password,
@@ -217,10 +233,11 @@ This is a process that can see every keystroke, and it is built accordingly.
   think is on screen may not be. That last group also means lookback can never
   reach back across a language you switched into deliberately.
 
-There is **no undo**. That was a deliberate choice, and it is why the false
-alarm rate above is the number the calibration is built around. Adding a revert
-hotkey is a small change: `Coordinator` already keeps the last `Correction`,
-which carries everything needed to reverse it.
+Undo is deliberately conservative. A correction stays reversible while we can
+still be certain where its text is: you may keep typing, and undo reaches back
+over what you added, but arrow keys, backspace, a command chord, a click
+elsewhere, an app switch or a layout change all give it up rather than risk
+deleting the wrong characters. A wrong undo would be worse than no undo.
 
 ## Development
 
@@ -262,6 +279,17 @@ Injection behaviour is the one thing tests cannot cover. Checklist:
 | Slack | | |
 | VS Code | | |
 | Terminal | | |
+
+### Verifying the toast
+
+`LayoutFixApp --demo-toast` shows a sample panel for 20 seconds and prints what
+matters about it: that the app stayed inactive, that the panel cannot become
+key, its level, and the on-screen rect of the Undo button. Useful because the
+panel is otherwise only reachable by provoking a real correction.
+
+Note that synthesised clicks cannot exercise the button from a process without
+Accessibility access — `CGEventPost` is silently dropped — so the click path has
+to be checked by hand.
 
 ### Known limitations
 

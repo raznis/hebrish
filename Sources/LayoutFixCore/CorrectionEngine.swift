@@ -8,18 +8,43 @@ public struct Correction: Equatable, Sendable {
     public let replacement: String
     /// Which input source to select afterwards.
     public let switchTo: Script
+    /// Which input source was live before, so the change can be undone.
+    public let switchFrom: Script
     /// What was on screen, for logging and the HUD.
     public let original: String
     /// How many words this covers (1 = just the word just finished).
     public let wordCount: Int
+    /// The tokens this converted, as the user actually typed them, keyed for
+    /// the learned-exception list. One entry per converted word.
+    public let convertedTokens: [String]
 
-    public init(deleteCount: Int, replacement: String, switchTo: Script,
-                original: String, wordCount: Int) {
+    public init(deleteCount: Int, replacement: String,
+                switchTo: Script, switchFrom: Script,
+                original: String, wordCount: Int,
+                convertedTokens: [String] = []) {
         self.deleteCount = deleteCount
         self.replacement = replacement
         self.switchTo = switchTo
+        self.switchFrom = switchFrom
         self.original = original
         self.wordCount = wordCount
+        self.convertedTokens = convertedTokens
+    }
+
+    /// The edit that puts things back exactly as the user typed them.
+    ///
+    /// Symmetric by construction: what we inserted becomes what to delete, and
+    /// what was on screen becomes what to type. Valid only while the caret is
+    /// still sitting immediately after the replacement -- the app layer is
+    /// responsible for invalidating it once anything else happens.
+    public var reversed: Correction {
+        Correction(deleteCount: replacement.count,
+                   replacement: original,
+                   switchTo: switchFrom,
+                   switchFrom: switchTo,
+                   original: replacement,
+                   wordCount: wordCount,
+                   convertedTokens: convertedTokens)
     }
 }
 
@@ -35,6 +60,18 @@ public final class CorrectionEngine {
 
     /// Set false to evaluate and report without ever emitting a correction.
     public var enabled = true
+
+    /// Words the user has rejected. Consulted on every conversion, including
+    /// lookback, so a rejection sticks in every context.
+    public var exceptions = LearnedExceptions()
+
+    /// Record every token in a correction the user has just undone, so it is
+    /// never proposed again.
+    public func learnRejection(of correction: Correction) {
+        for token in correction.convertedTokens {
+            exceptions.insert(typed: token, script: correction.switchFrom)
+        }
+    }
 
     public init(pair: LayoutPair, scorer: Scorer,
                 capacity: Int = 64, idleTimeout: TimeInterval = 4.0) {
@@ -108,12 +145,23 @@ public final class CorrectionEngine {
             }
         }
 
+        // Drop anything the user has already told us to leave alone. Applied
+        // here rather than in the scorer so it overrides both the ordinary
+        // decision and the relaxed lookback one.
+        for index in 0..<run.count where converted[index] != nil {
+            let typed = pair.produced(run[index].strokes, activeScript: activeScript)
+            if exceptions.contains(typed: typed, script: activeScript) {
+                converted[index] = nil
+            }
+        }
+
         guard let start = converted.firstIndex(where: { $0 != nil }) else { return nil }
 
         var deleteCount = 0
         var replacement = ""
         var original = ""
         var wordCount = 0
+        var convertedTokens: [String] = []
 
         for index in start..<run.count {
             let token = run[index]
@@ -125,7 +173,10 @@ public final class CorrectionEngine {
             deleteCount += producedText.count + boundaryText.count
             original += producedText + boundaryText
             replacement += (converted[index] ?? producedText) + boundaryText
-            if converted[index] != nil { wordCount += 1 }
+            if converted[index] != nil {
+                wordCount += 1
+                convertedTokens.append(producedText)
+            }
         }
 
         guard deleteCount > 0, replacement != original else { return nil }
@@ -134,7 +185,9 @@ public final class CorrectionEngine {
         return Correction(deleteCount: deleteCount,
                           replacement: replacement,
                           switchTo: target,
+                          switchFrom: activeScript,
                           original: original,
-                          wordCount: wordCount)
+                          wordCount: wordCount,
+                          convertedTokens: convertedTokens)
     }
 }
