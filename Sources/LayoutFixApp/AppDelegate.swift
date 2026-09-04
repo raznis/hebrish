@@ -15,7 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // running from different paths make the Privacy & Security lists
         // ambiguous -- the user grants one entry and the other stays deaf.
         if let other = otherRunningInstance() {
-            fatal("LayoutFix is already running",
+            fatal("Hebrish is already running",
                   """
                   Another copy is running from:
                     \(other)
@@ -123,7 +123,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let alert = NSAlert()
         alert.messageText = "Permissions granted"
         alert.informativeText = """
-            LayoutFix has to restart to start reading the keyboard, because a \
+            Hebrish has to restart to start reading the keyboard, because a \
             tap only picks up the new permissions when it is created.
             """
         alert.addButton(withTitle: "Relaunch")
@@ -176,21 +176,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func explainMissingPermissions(_ state: Permissions.State) {
         let alert = NSAlert()
-        alert.messageText = "LayoutFix needs permission: \(state.missing.joined(separator: " and "))"
+        alert.messageText = "Hebrish needs permission: \(state.missing.joined(separator: " and "))"
         alert.informativeText = """
-            LayoutFix needs two separate permissions, in two different lists in \
+            Hebrish needs two separate permissions, in two different lists in \
             System Settings > Privacy & Security:
 
               Input Monitoring  - to notice a word typed in the wrong layout
               Accessibility     - to replace it
 
-            Enable LayoutFix under \(state.missing.joined(separator: " and ")), \
+            Enable Hebrish under \(state.missing.joined(separator: " and ")), \
             then quit and launch it again.
 
-            If LayoutFix is not listed at all, add it by hand: click + in that \
+            If Hebrish is not listed at all, add it by hand: click + in that \
             list and choose
 
-              /Applications/LayoutFix.app
+              /Applications/Hebrish.app
 
             An app only appears there once macOS has recorded a request for it, \
             and that record can be missing entirely -- the + button works \

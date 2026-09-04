@@ -1,4 +1,4 @@
-# LayoutFix
+# Hebrish
 
 A macOS menu-bar agent that notices when you have typed a word in the wrong
 keyboard layout — English text on a Hebrew input source, or Hebrew text on an
@@ -21,7 +21,7 @@ Xcode needed).
 make lexicon && make install
 ```
 
-Then open `/Applications/LayoutFix.app` and grant it **two** permissions, which
+Then open `/Applications/Hebrish.app` and grant it **two** permissions, which
 live in two different lists under **System Settings → Privacy & Security**:
 
 | Grant | Why |
@@ -29,7 +29,7 @@ live in two different lists under **System Settings → Privacy & Security**:
 | **Input Monitoring** | to notice a word typed in the wrong layout |
 | **Accessibility** | to replace it |
 
-Enable LayoutFix in both, then quit and relaunch it.
+Enable Hebrish in both, then quit and relaunch it.
 
 These are genuinely separate, and the failure mode is quiet: without Input
 Monitoring, `CGEvent.tapCreate` still returns a valid tap and simply delivers
@@ -39,7 +39,7 @@ Monitoring is granted. *Diagnostics…* reports both grants.
 
 ### If the app never appears in the lists at all
 
-A different failure from the one below, with a different cause: if LayoutFix is
+A different failure from the one below, with a different cause: if Hebrish is
 missing from Input Monitoring entirely — no entry to switch on, no prompt — the
 app was signed with the **hardened runtime**. That is for notarized Developer ID
 builds; on an ad-hoc binary carrying no entitlements macOS applies its strict
@@ -71,16 +71,16 @@ to switch on. Accessibility is unaffected because a separate system agent drives
 its prompt.
 
 The fix does not need the record: in **Input Monitoring**, click **+** and choose
-`/Applications/LayoutFix.app`. That creates the entry directly.
+`/Applications/Hebrish.app`. That creates the entry directly.
 
-(LayoutFix no longer puts its own alert up straight after requesting, which was
+(Hebrish no longer puts its own alert up straight after requesting, which was
 the cause of this. Guidance now waits 12 seconds and appears only if the system
 prompts went unanswered.)
 
 ### If it stays deaf
 
 The menu's **Keys seen** counter is the ground truth. If it sits at 0 even
-though both switches look enabled, the grant is stale: LayoutFix is ad-hoc
+though both switches look enabled, the grant is stale: Hebrish is ad-hoc
 signed, so macOS binds each permission to the binary's *hash*, and any rebuild
 silently invalidates it while leaving the switch showing on. Two copies of the
 bundle at different paths produce two entries and the same confusion.
@@ -89,13 +89,13 @@ Clear it and start over:
 
 ```bash
 pkill -x LayoutFixApp
-tccutil reset ListenEvent com.raznissim.layoutfix
-tccutil reset Accessibility com.raznissim.layoutfix
-open /Applications/LayoutFix.app
+tccutil reset ListenEvent com.raznissim.hebrish
+tccutil reset Accessibility com.raznissim.hebrish
+open /Applications/Hebrish.app
 ```
 
 Then grant both again. Keep exactly one copy of the app — if you have built it
-locally, `rm -rf build/LayoutFix.app` after installing.
+locally, `rm -rf build/Hebrish.app` after installing.
 
 Turn on *Open at Login* from the menu-bar menu to have it start with the Mac.
 
@@ -111,7 +111,7 @@ locally built app carries no quarantine flag, so Gatekeeper never gets involved.
 On the other Mac:
 
 ```bash
-git clone https://github.com/raznis/layoutfix.git && cd layoutfix && make install
+git clone https://github.com/raznis/hebrish.git && cd hebrish && make install
 ```
 
 That fetches the language data, bakes the lexicon, builds, signs and installs in
@@ -119,16 +119,16 @@ one step. It needs only the Command Line Tools (`xcode-select --install`), not
 Xcode. Then grant the two permissions above.
 
 **If they would rather not build it**, `make dist` produces a universal
-(Apple Silicon + Intel) `dist/LayoutFix.zip`, about 2 MB. Send them that, and
+(Apple Silicon + Intel) `dist/Hebrish.zip`, about 2 MB. Send them that, and
 they must clear the quarantine flag after downloading:
 
 ```bash
-unzip LayoutFix.zip -d /Applications/
-xattr -dr com.apple.quarantine /Applications/LayoutFix.app
-open /Applications/LayoutFix.app
+unzip Hebrish.zip -d /Applications/
+xattr -dr com.apple.quarantine /Applications/Hebrish.app
+open /Applications/Hebrish.app
 ```
 
-The `xattr` step is not optional. LayoutFix is ad-hoc signed, not signed with a
+The `xattr` step is not optional. Hebrish is ad-hoc signed, not signed with a
 Developer ID and not notarized, so a downloaded copy is quarantined and macOS
 will refuse to launch it — reporting it as damaged or from an unidentified
 developer. Removing the flag is what lets it run. Distributing it without that
@@ -237,7 +237,7 @@ This is a process that can see every keystroke, and it is built accordingly.
 
 - **One thing typed is stored, and only one.** When you undo a correction,
   the word you rejected is saved so it is never corrected again. That list is
-  the *only* durable trace LayoutFix keeps of anything typed: it holds only
+  the *only* durable trace Hebrish keeps of anything typed: it holds only
   words you actively rejected, is capped at 500 entries, and is fully visible
   and editable from the menu — remove any single word, or forget all of them.
 - **Nothing else typed is written to disk.** The buffer is in-memory, bounded to
@@ -249,14 +249,14 @@ This is a process that can see every keystroke, and it is built accordingly.
   acted on. That flag alone is not enough, though: it only goes true when an app
   explicitly calls `EnableSecureEventInput()`, which native `NSSecureTextField`
   does — the login window, System Settings, Keychain Access — while web password
-  fields and most Electron apps do not. So LayoutFix also asks Accessibility
+  fields and most Electron apps do not. So Hebrish also asks Accessibility
   what kind of field has focus and stands down on any secure text field.
 
-  It reads the field's *role*, never its value. LayoutFix has no business
+  It reads the field's *role*, never its value. Hebrish has no business
   knowing what is in a field, only what kind of field it is.
 
   The honest limit: the second check works only where an app exposes the secure
-  subrole, and if the query fails LayoutFix carries on as it would have anyway.
+  subrole, and if the query fails Hebrish carries on as it would have anyway.
   It closes most of the gap; it is not a guarantee. Which apps report what is
   recorded in the log — see below.
 - **Password managers are excluded** by bundle ID out of the box (1Password,
@@ -272,7 +272,7 @@ This is a process that can see every keystroke, and it is built accordingly.
   remaining password-field coverage gets measured against real apps:
 
   ```bash
-  log show --last 1h --info --predicate 'subsystem == "com.raznissim.layoutfix"' | grep "field kind"
+  log show --last 1h --info --predicate 'subsystem == "com.raznissim.hebrish"' | grep "field kind"
   ```
 - **The buffer is discarded** on arrow keys, Home/End/PageUp/Down, Escape,
   backspace, any Cmd/Ctrl/Opt chord, Return, a mouse click, an app switch, a
@@ -291,7 +291,7 @@ deleting the wrong characters. A wrong undo would be worse than no undo.
 ```bash
 make test        # unit + integration suite
 make eval        # calibration report
-make bundle      # assemble build/LayoutFix.app
+make bundle      # assemble build/Hebrish.app
 make run         # bundle, relaunch
 make install     # copy to /Applications
 ```

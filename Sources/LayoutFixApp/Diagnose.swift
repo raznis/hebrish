@@ -11,7 +11,7 @@ enum Diagnose {
 
     static func run() -> Never {
         let (report, problems) = collect()
-        print("LayoutFix diagnostics")
+        print("Hebrish diagnostics")
         print(String(repeating: "-", count: 60))
         print(report)
         print(String(repeating: "-", count: 60))
@@ -45,12 +45,12 @@ enum Diagnose {
         print("Accessibility        : \(permissions.canPost ? "granted" : "NOT GRANTED")  (needed to correct)")
         if !permissions.isComplete {
             problems.append("""
-                Enable LayoutFix under System Settings > Privacy & Security >
+                Enable Hebrish under System Settings > Privacy & Security >
                   \(permissions.missing.joined(separator: "\n  "))
                 then quit and relaunch it.
 
-                If LayoutFix is not listed there at all, add it by hand: click +
-                and choose /Applications/LayoutFix.app. An app only appears in
+                If Hebrish is not listed there at all, add it by hand: click +
+                and choose /Applications/Hebrish.app. An app only appears in
                 these lists once macOS has recorded a request for it, and that
                 record is sometimes never written -- the + button works anyway.
 
@@ -86,7 +86,7 @@ enum Diagnose {
             let reading = layouts.pair.reading(strokes, as: .hebrew)
             let ok = reading == "שלום"
             print("Mapping check        : akuo -> \(reading) \(ok ? "OK" : "MISMATCH")")
-            if !ok { problems.append("Keycode mapping is not what LayoutFix expects.") }
+            if !ok { problems.append("Keycode mapping is not what Hebrish expects.") }
         } catch {
             print("Layouts              : FAILED - \(error)")
             problems.append("\(error)")

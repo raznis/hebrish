@@ -8,7 +8,7 @@ import os
 /// explicitly configured to reveal it. Reset reasons, counts and status are
 /// safe and go out at `.info`.
 enum Log {
-    static let subsystem = "com.raznissim.layoutfix"
+    static let subsystem = "com.raznissim.hebrish"
 
     static let app = Logger(subsystem: subsystem, category: "app")
     static let tap = Logger(subsystem: subsystem, category: "tap")

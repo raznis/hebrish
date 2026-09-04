@@ -1,7 +1,7 @@
 import Foundation
 import Carbon.HIToolbox
 
-/// The two writing systems LayoutFix arbitrates between.
+/// The two writing systems Hebrish arbitrates between.
 public enum Script: String, Sendable, CaseIterable {
     case latin
     case hebrew

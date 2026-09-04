@@ -28,13 +28,17 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     private func refreshIcon() {
         guard let button = statusItem.button else { return }
         let on = settings.isEnabled && coordinator.isRunning && Permissions.state.isComplete
-        // Aleph when active, struck through when not: readable at menu-bar size
-        // and needs no asset.
-        button.title = on ? "א" : "a\u{0338}"
+        // One mark, two states. Previously this swapped the glyph entirely,
+        // which read as a different app rather than a change of state.
+        // `appearsDisabled` is how the menu bar conventionally shows inactive,
+        // and macOS dims the template correctly for the current appearance.
+        button.image = MenuBarIcon.template
+        button.appearsDisabled = !on
+        button.title = ""
         button.toolTip = on
-            ? "LayoutFix: watching for wrong-layout typing"
-            : (Permissions.state.isComplete ? "LayoutFix: paused"
-                                            : "LayoutFix: permission needed")
+            ? "Hebrish: watching for wrong-layout typing"
+            : (Permissions.state.isComplete ? "Hebrish: paused"
+                                            : "Hebrish: permission needed")
     }
 
     // MARK: - Menu
@@ -65,7 +69,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
             menu.addItem(.separator())
         }
 
-        let toggle = add(menu, settings.isEnabled ? "Pause LayoutFix" : "Resume LayoutFix",
+        let toggle = add(menu, settings.isEnabled ? "Pause Hebrish" : "Resume Hebrish",
                          action: #selector(toggleEnabled), target: self)
         toggle.isEnabled = coordinator.isRunning
 
@@ -109,7 +113,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         add(menu, "Diagnostics...", action: #selector(showDiagnostics), target: self)
 
         menu.addItem(.separator())
-        add(menu, "Quit LayoutFix", action: #selector(quit), target: self, key: "q")
+        add(menu, "Quit Hebrish", action: #selector(quit), target: self, key: "q")
     }
 
     @discardableResult
@@ -211,7 +215,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
         let alert = NSAlert()
         alert.messageText = "Forget \(learned.count) rejected word(s)?"
         alert.informativeText = """
-            LayoutFix will start correcting these words again if it thinks they \
+            Hebrish will start correcting these words again if it thinks they \
             were typed in the wrong layout.
 
             \(learned.descriptions.prefix(12).joined(separator: ", "))\
@@ -233,7 +237,7 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     @objc private func showDiagnostics() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "LayoutFix diagnostics"
+        alert.messageText = "Hebrish diagnostics"
         alert.informativeText = Diagnose.summary()
         alert.addButton(withTitle: "OK")
         if !Permissions.state.isComplete {

@@ -20,7 +20,7 @@ final class Settings {
         static let showToast = "showToast"
     }
 
-    /// Apps LayoutFix stays out of. Seeded with password managers and
+    /// Apps Hebrish stays out of. Seeded with password managers and
     /// credential UIs, where a mis-fire would be worst and where text is often
     /// not language at all.
     static let defaultDeniedBundleIDs = [
@@ -33,10 +33,19 @@ final class Settings {
         "com.apple.loginwindow",
     ]
 
+    /// The identifier before the rename to Hebrish. Read once, so an existing
+    /// install does not silently lose its rejected words when the bundle
+    /// identifier changes and with it the preferences domain.
+    private static let previousDomain = "com.raznissim.layoutfix"
+
     /// - Parameter defaults: injectable so diagnostics can run against a
     ///   scratch domain instead of the user's real preferences.
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // Before register(defaults:), deliberately: registered defaults are
+        // returned by array(forKey:), so a check afterwards cannot tell "never
+        // stored" from "stored as empty" and the migration silently no-ops.
+        migrateFromPreviousDomain()
         defaults.register(defaults: [
             Key.enabled: true,
             Key.deniedBundleIDs: Settings.defaultDeniedBundleIDs,
@@ -45,6 +54,21 @@ final class Settings {
             Key.learnedExceptions: [String](),
             Key.showToast: true,
         ])
+    }
+
+    /// One-way, one-time: only fills a key the new domain has never had.
+    /// Deliberately narrow -- it moves the rejected words and nothing else,
+    /// since every other setting is a preference the user can simply set again.
+    private func migrateFromPreviousDomain() {
+        guard defaults.array(forKey: Key.learnedExceptions) == nil else { return }
+        // persistentDomain rather than UserDefaults(suiteName:): suiteName is
+        // for app groups and is not a dependable way to read another bundle
+        // identifier's preferences.
+        guard let old = defaults.persistentDomain(forName: Settings.previousDomain),
+              let words = old[Key.learnedExceptions] as? [String],
+              !words.isEmpty else { return }
+        defaults.set(words, forKey: Key.learnedExceptions)
+        Log.app.info("migrated \(words.count, privacy: .public) rejected word(s) from the previous identifier")
     }
 
     var isEnabled: Bool {

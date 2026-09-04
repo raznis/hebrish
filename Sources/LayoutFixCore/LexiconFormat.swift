@@ -27,7 +27,7 @@ public enum LexiconFormat {
 
         public var description: String {
             switch self {
-            case .badMagic: return "Not a LayoutFix lexicon (bad magic)."
+            case .badMagic: return "Not a Hebrish lexicon (bad magic)."
             case .unsupportedVersion(let v): return "Lexicon version \(v) is not supported."
             case .truncated(let o): return "Lexicon truncated at byte \(o)."
             case .badUTF8(let o): return "Lexicon contains invalid UTF-8 at byte \(o)."

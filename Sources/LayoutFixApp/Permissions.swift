@@ -3,7 +3,7 @@ import ApplicationServices
 import Carbon
 import CoreGraphics
 
-/// The two separate permissions LayoutFix needs, and the APIs that answer
+/// The two separate permissions Hebrish needs, and the APIs that answer
 /// honestly about them.
 ///
 /// They are easy to conflate and they live in different lists in System
@@ -71,7 +71,7 @@ enum Permissions {
 
     /// True while a password field or similar has taken over the keyboard.
     ///
-    /// Every keystroke is skipped in this state. LayoutFix must never see, let
+    /// Every keystroke is skipped in this state. Hebrish must never see, let
     /// alone buffer, a password.
     static var isSecureInputEnabled: Bool {
         IsSecureEventInputEnabled()

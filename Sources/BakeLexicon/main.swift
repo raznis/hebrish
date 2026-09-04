@@ -5,7 +5,7 @@ let usage = """
 usage: BakeLexicon --en <en_50k.txt> --he <he_50k.txt> --out <lexicon.bin>
                    [--sys-words /usr/share/dict/words]
 
-Turns "word count" frequency lists into a LayoutFix lexicon.
+Turns "word count" frequency lists into a Hebrish lexicon.
 """
 
 let args = CLIArgs()

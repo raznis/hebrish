@@ -4,9 +4,15 @@
 # CLT-only toolchain, so the suite uses swift-testing; the framework ships with
 # CLT but needs an explicit search path, which TESTFLAGS supplies.
 
-APP_NAME    := LayoutFix
-BUNDLE_ID   := com.raznissim.layoutfix
-EXECUTABLE  := LayoutFixApp
+APP_NAME    := Hebrish
+BUNDLE_ID   := com.raznissim.hebrish
+# The name the bundle presents, via CFBundleExecutable. This is what shows up in
+# Activity Monitor and what `pkill -x` matches.
+EXECUTABLE  := Hebrish
+# The SwiftPM product name, deliberately left alone: renaming the Swift targets
+# would touch every file for no user-visible gain, since CFBundleExecutable lets
+# the bundle present a clean name regardless.
+BIN_NAME    := LayoutFixApp
 CONFIG      ?= release
 
 BUILD_DIR   := build
@@ -86,7 +92,7 @@ eval: data build
 bundle: build Resources/lexicon.bin
 	@rm -rf $(APP_BUNDLE)
 	@mkdir -p $(CONTENTS)/MacOS $(CONTENTS)/Resources
-	cp $(BIN_PATH)/$(EXECUTABLE) $(CONTENTS)/MacOS/$(EXECUTABLE)
+	cp $(BIN_PATH)/$(BIN_NAME) $(CONTENTS)/MacOS/$(EXECUTABLE)
 	cp App/Info.plist $(CONTENTS)/Info.plist
 	@printf 'APPL????' > $(CONTENTS)/PkgInfo
 	cp Resources/lexicon.bin $(CONTENTS)/Resources/lexicon.bin
@@ -134,8 +140,8 @@ dist: Resources/lexicon.bin
 	swift build -c release --triple arm64-apple-macosx13.0
 	swift build -c release --triple x86_64-apple-macosx13.0
 	lipo -create -output $(DIST_CONTENTS)/MacOS/$(EXECUTABLE) \
-	  .build/arm64-apple-macosx/release/$(EXECUTABLE) \
-	  .build/x86_64-apple-macosx/release/$(EXECUTABLE)
+	  .build/arm64-apple-macosx/release/$(BIN_NAME) \
+	  .build/x86_64-apple-macosx/release/$(BIN_NAME)
 	cp App/Info.plist $(DIST_CONTENTS)/Info.plist
 	@printf 'APPL????' > $(DIST_CONTENTS)/PkgInfo
 	cp Resources/lexicon.bin $(DIST_CONTENTS)/Resources/lexicon.bin

@@ -8,7 +8,7 @@ import Foundation
 /// English wants `gus`, and telling us so once should settle it permanently --
 /// otherwise the same fight recurs every time they type their colleague's name.
 ///
-/// Note on privacy: this is the only thing LayoutFix retains that derives from
+/// Note on privacy: this is the only thing Hebrish retains that derives from
 /// typing, and it holds only tokens the user deliberately rejected. It is
 /// capped, inspectable from the menu, and clearable in one action.
 public struct LearnedExceptions: Sendable, Equatable {

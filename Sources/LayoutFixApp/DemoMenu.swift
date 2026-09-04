@@ -12,7 +12,7 @@ import LayoutFixCore
 /// diagnostic must not disturb the list it is describing.
 enum DemoMenu {
 
-    private static let scratchSuite = "com.raznissim.layoutfix.demo"
+    private static let scratchSuite = "com.raznissim.hebrish.demo"
 
     static func run() -> Never {
         setbuf(stdout, nil)

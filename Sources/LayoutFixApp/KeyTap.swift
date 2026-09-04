@@ -31,7 +31,7 @@ final class KeyTap {
     var onEvent: ((Event) -> Void)?
 
     /// Serial queue on which `onEvent` runs, and on which corrections are applied.
-    let queue = DispatchQueue(label: "com.raznissim.layoutfix.events", qos: .userInteractive)
+    let queue = DispatchQueue(label: "com.raznissim.hebrish.events", qos: .userInteractive)
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?

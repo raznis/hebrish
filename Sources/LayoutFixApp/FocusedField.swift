@@ -16,7 +16,7 @@ import Foundation
 /// millisecond, and it runs on the tap's queue rather than in the tap callback,
 /// so the callback deadline is untouched.
 ///
-/// It reads the field's *role*, never `kAXValueAttribute`. LayoutFix has no
+/// It reads the field's *role*, never `kAXValueAttribute`. Hebrish has no
 /// business reading what is in a field, only what kind of field it is.
 enum FocusedField {
 
