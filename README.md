@@ -330,10 +330,23 @@ and non-US Latin layouts all work with no extra code.
 
 XCTest is unavailable in a Command Line Tools-only toolchain, so the suite uses
 swift-testing. `Testing.framework` ships with CLT but needs explicit search
-paths, which the Makefile supplies. `swiftpm-testing-helper` also aborts during
-process teardown *after* reporting, so `scripts/run-tests.sh` judges the run
-from swift-testing's own summary rather than the exit code. Use `make test`, not
-bare `swift test`.
+paths, which the Makefile supplies.
+
+Use `make test`, never bare `swift test`. On this toolchain
+`swiftpm-testing-helper` aborts with signal 6 during process *teardown*, after
+the tests have finished, so the exit code carries no information. Worse, the
+abort races the summary line: about one run in five it wins and no summary is
+printed, which made an earlier stdout-parsing gate report failures when nothing
+had failed.
+
+`scripts/run-tests.sh` therefore judges the run from swift-testing's JUnit XML,
+which is written before teardown and states the counts outright. It prints them,
+so a pass is legible rather than inferred:
+
+```
+==> 76 tests, 0 failures, 0 errors, 0 skipped
+==> PASS
+```
 
 ### Verifying in real apps
 
