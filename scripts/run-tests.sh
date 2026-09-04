@@ -1,44 +1,54 @@
 #!/bin/bash
-# Run the suite and judge it from swift-testing's JUnit XML.
+# Run the suite and decide pass/fail from whichever signal actually reported.
 #
-# Neither the exit code nor stdout is trustworthy here. With a Command Line
-# Tools-only toolchain, swiftpm-testing-helper aborts (signal 6) during process
-# teardown, after the tests themselves have finished. That makes the exit code
-# meaningless, and it also races the summary line: roughly one run in five the
-# abort wins and no summary is printed at all, so judging by stdout reports a
-# failure when nothing failed.
+# Neither the exit code nor any single output is dependable here. With a Command
+# Line Tools-only toolchain, swiftpm-testing-helper aborts (signal 6) during
+# process teardown, after the tests have finished:
 #
-# The XML is written before teardown and carries explicit counts, so it is the
-# one authoritative signal. Stdout is only a fallback for the case where the run
-# died early enough to produce no XML.
+#   * the exit code is therefore meaningless;
+#   * the abort races the stdout summary, so roughly one run in five prints no
+#     summary at all;
+#   * and occasionally the JUnit XML lands with tests="0" even though every test
+#     ran and passed.
+#
+# So: prefer the XML when it actually contains results, fall back to the stdout
+# summary when it does not, and fail only when neither reports success.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
-xml=$(mktemp -t hebrish-xunit).xml
+xml=$(mktemp -t hebrish-xunit)
+rm -f "$xml"          # mktemp made it; swift test wants to create it itself
 trap 'rm -f "$xml"' EXIT
 
 out=$(swift test --xunit-output "$xml" "$@" 2>&1)
 echo "$out"
 
-if [[ -s "$xml" ]]; then
-    attr() {
-        grep -o "$1=\"[0-9]*\"" "$xml" | head -1 | sed 's/.*="\([0-9]*\)"/\1/'
-    }
-    tests=$(attr tests); failures=$(attr failures); errors=$(attr errors)
-    skipped=$(attr skipped)
-    echo "==> ${tests:-0} tests, ${failures:-0} failures, ${errors:-0} errors, ${skipped:-0} skipped"
-    if [[ "${tests:-0}" -gt 0 && "${failures:-0}" -eq 0 && "${errors:-0}" -eq 0 ]]; then
-        echo "==> PASS"
-        exit 0
+xml_attr() {
+    [[ -s "$xml" ]] || { echo 0; return; }
+    local v
+    v=$(grep -o "$1=\"[0-9]*\"" "$xml" | head -1 | sed 's/.*="\([0-9]*\)"/\1/')
+    echo "${v:-0}"
+}
+
+tests=$(xml_attr tests)
+failures=$(xml_attr failures)
+errors=$(xml_attr errors)
+skipped=$(xml_attr skipped)
+
+if [[ "$tests" -gt 0 ]]; then
+    echo "==> $tests tests, $failures failures, $errors errors, $skipped skipped"
+    if [[ "$failures" -eq 0 && "$errors" -eq 0 ]]; then
+        echo "==> PASS"; exit 0
     fi
-    echo "==> FAIL"
-    exit 1
+    echo "==> FAIL"; exit 1
 fi
 
-# No XML: the run did not get far enough to report, so fall back to stdout.
-if grep -qE 'Test run with [0-9]+ tests? in [0-9]+ suites? passed' <<<"$out"; then
-    echo "==> PASS (no XML; matched the summary line)"
-    exit 0
+# No usable XML. Fall back to what swift-testing printed.
+if grep -qE '✘|Test run with .* failed' <<<"$out"; then
+    echo "==> FAIL (from the printed summary)"; exit 1
 fi
-echo "==> FAIL: no test results were produced (build error or early crash)"
+if grep -qE 'Test run with [0-9]+ tests?( in [0-9]+ suites?)? passed' <<<"$out"; then
+    echo "==> PASS (no XML results; matched the printed summary)"; exit 0
+fi
+echo "==> FAIL: no results were produced at all (build error or early crash)"
 exit 1

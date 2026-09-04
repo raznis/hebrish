@@ -31,9 +31,10 @@ abort races the summary line: about one run in five it wins and no summary is
 printed, which made an earlier stdout-parsing gate report failures when nothing
 had failed.
 
-`scripts/run-tests.sh` therefore judges the run from swift-testing's JUnit XML,
-which is written before teardown and states the counts outright. It prints them,
-so a pass is legible rather than inferred:
+`scripts/run-tests.sh` therefore prefers the JUnit XML, which is written before
+teardown and states counts outright, and falls back to the printed summary when
+the XML lands empty — which it occasionally does even on a clean run. It prints
+what it found, so a pass is legible rather than inferred:
 
 ```
 ==> 76 tests, 0 failures, 0 errors, 0 skipped
